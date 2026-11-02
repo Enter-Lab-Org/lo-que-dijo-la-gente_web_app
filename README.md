@@ -50,6 +50,29 @@ Requires Node 22.13+ (the `sqlite` driver uses the built-in `node:sqlite`).
 - **Changing the engine:** implement the `users` / `sessions` / `close` ports in `src/server/db/<engine>/`, make it pass
   `describeRepositoryContract` (`src/server/db/contract.js`), and register it in `src/server/db/index.js`.
 
+## Deploy on Vercel
+
+Vercel runs the app as serverless functions with a read-only, per-instance filesystem, so the `sqlite` file driver
+cannot keep data there. Use `libsql` (Turso).
+
+1. Import the GitHub repo in Vercel (framework preset: Next.js; build and output settings stay default).
+2. Project settings > Environment Variables (Production and Preview):
+
+   | Variable | Value |
+   | --- | --- |
+   | `DB_DRIVER` | `libsql` |
+   | `DATABASE_URL` | `libsql://<db>-<org>.<region>.turso.io` |
+   | `DATABASE_AUTH_TOKEN` | Turso token (mark it Sensitive) |
+   | `TRUST_PROXY` | `1` (Vercel sets `X-Forwarded-For`, enables per-IP rate limits) |
+
+   Without `DB_DRIVER` the app falls back to `sqlite` and fails with a read-only filesystem error.
+3. Create users from your machine against the same database: put the same three variables in `.env.local`
+   and run `npm run user:create -- <email>`. There is no signup page.
+4. Optional: set the function region next to the Turso database (Project settings > Functions), e.g. `iad1`
+   or `cle1` for `aws-us-east-2`.
+
+Known limit: the failed-login rate limit is kept in memory, so on Vercel each function instance counts on its own.
+
 ## Structure
 
 ```
