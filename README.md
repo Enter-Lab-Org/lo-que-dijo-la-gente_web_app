@@ -21,17 +21,28 @@ The game itself runs in the browser (no SSR): fonts are bundled from `src/styles
 | `npm run build` | Production build into `.next/` |
 | `npm start` | Serve the production build on http://localhost:8081 |
 
-Requires Node 22.13+ (uses the built-in `node:sqlite`).
+Requires Node 22.13+ (the `sqlite` driver uses the built-in `node:sqlite`).
 
 ## Login and database
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `DB_DRIVER` | `sqlite` | Database engine. Only `sqlite` for now |
-| `DATABASE_URL` | `data/ldlg.db` | SQLite file (`file:` prefix and `:memory:` accepted). Created on first use |
+| `DB_DRIVER` | `sqlite` | Database engine: `sqlite` (local file, `node:sqlite`) or `libsql` (Turso, via `@libsql/client`) |
+| `DATABASE_URL` | `data/ldlg.db` | `sqlite`: file path (`file:` prefix and `:memory:` accepted), created on first use. `libsql`: required, e.g. `libsql://<db>-<org>.<region>.turso.io` (also `file:` / `:memory:`) |
+| `DATABASE_AUTH_TOKEN` | unset | Turso database token (`libsql` only). Secret: keep it in `.env.local`, never in git |
 | `COOKIE_SECURE` | `true` in production | Set `false` to serve over plain http on a LAN (`localhost` works either way) |
 | `TRUST_PROXY` | unset | Set `1` only behind a reverse proxy that sets `X-Forwarded-For`; enables per-IP rate limits |
 
+- Secrets go in `.env.local` (git-ignored). `npm run dev` / `npm start` and `npm run user:create` all read it. Example:
+
+  ```
+  DB_DRIVER=libsql
+  DATABASE_URL=libsql://<db>-<org>.<region>.turso.io
+  DATABASE_AUTH_TOKEN=<token from the Turso dashboard or `turso db tokens create <db>`>
+  ```
+
+- Both drivers share the schema in `src/server/db/sqlite/migrations.js`; `libsql` tracks applied versions in a
+  `schema_migrations` table and applies pending ones on first use.
 - Passwords are stored as scrypt hashes; the session cookie (`ldlg_session`, HttpOnly, SameSite=Lax, 7 days)
   holds a random token and the database stores only its SHA-256.
 - `src/proxy.js` only checks that the cookie exists; `src/app/page.jsx` validates the session against the database.

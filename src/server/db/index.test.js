@@ -8,6 +8,6 @@ describe("createDatabase", () => {
   });
 
   it("names the supported drivers when the driver is unknown", () => {
-    expect(() => createDatabase({ driver: "mongo" })).toThrow('Unsupported DB_DRIVER "mongo". Supported: sqlite');
+    expect(() => createDatabase({ driver: "mongo" })).toThrow('Unsupported DB_DRIVER "mongo". Supported: sqlite, libsql');
   });
 });

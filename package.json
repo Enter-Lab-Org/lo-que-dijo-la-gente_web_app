@@ -10,9 +10,10 @@
     "build": "next build",
     "start": "next start -p 8081",
     "test": "vitest",
-    "user:create": "node scripts/create-user.mjs"
+    "user:create": "node --env-file-if-exists=.env.local scripts/create-user.mjs"
   },
   "dependencies": {
+    "@libsql/client": "0.18.0",
     "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1"
