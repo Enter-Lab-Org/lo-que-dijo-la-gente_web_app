@@ -23,6 +23,11 @@ export const hashToken = (token) => createHash("sha256").update(token).digest("b
 const FAILED = { ok: false, reason: "INVALID_CREDENTIALS" };
 const publicUser = (u) => ({ id: u.id, email: u.email, role: u.role, createdAt: u.createdAt });
 const notFound = () => new AuthError("NOT_FOUND", "Usuario no encontrado.");
+// The database enforces "at least one ADMIN" atomically; this only translates its error.
+const keepAdmin = (e) => {
+  if (e?.code === "LAST_ADMIN") throw new AuthError("LAST_ADMIN", "Debe quedar al menos un ADMIN.");
+  throw e;
+};
 function checkPassword(password) {
   if (typeof password !== "string" || password.length < MIN_PASSWORD || password.length > MAX_PASSWORD) {
     throw new AuthError("WEAK_PASSWORD", `La contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`);
@@ -98,7 +103,7 @@ export function createAuthService({
     async setRole({ actorId, id, role }) {
       checkRole(role);
       if (id === actorId) throw new AuthError("SELF_ROLE", "No puedes cambiar tu propio rol.");
-      const user = await db.users.updateRole(id, role);
+      const user = await db.users.updateRole(id, role).catch(keepAdmin);
       if (!user) throw notFound();
       return publicUser(user);
     },
@@ -114,7 +119,7 @@ export function createAuthService({
 
     async deleteUser({ actorId, id }) {
       if (id === actorId) throw new AuthError("SELF_DELETE", "No puedes eliminar tu propio usuario.");
-      if (!(await db.users.delete(id))) throw notFound();
+      if (!(await db.users.delete(id).catch(keepAdmin))) throw notFound();
     },
 
     async logout(token) {

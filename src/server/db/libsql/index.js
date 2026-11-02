@@ -4,6 +4,9 @@ import { MIGRATIONS } from "../sqlite/migrations.js";
 import { DEFAULT_ROLE } from "../../../domain/roles.js";
 
 const SQLITE_CONSTRAINT_UNIQUE = 2067;
+// The last-ADMIN rule lives in the write itself (one atomic statement), so concurrent requests cannot both pass it.
+const OTHER_ADMINS = "(SELECT COUNT(*) FROM users WHERE role = 'ADMIN') > 1";
+const lastAdmin = () => new DatabaseError("LAST_ADMIN", "At least one ADMIN must remain");
 const toUser = (r) => (r ? { id: Number(r.id), email: r.email, passwordHash: r.password_hash, role: r.role, createdAt: Number(r.created_at) } : null);
 // The shared migrations hold no ";" inside literals, so splitting on it yields whole statements.
 const statements = (sql) => sql.split(";").map((s) => s.trim()).filter(Boolean);
@@ -48,19 +51,25 @@ export function createLibsqlDatabase({ url, authToken } = {}) {
     },
     async list() { return (await run("SELECT * FROM users ORDER BY email")).rows.map(toUser); },
     async updateRole(id, role) {
-      return (await run("UPDATE users SET role = ? WHERE id = ?", [role, id])).rowsAffected ? users.findById(id) : null;
+      const sql = `UPDATE users SET role = ? WHERE id = ? AND (role <> 'ADMIN' OR ? = 'ADMIN' OR ${OTHER_ADMINS})`;
+      if ((await run(sql, [role, id, role])).rowsAffected) return users.findById(id);
+      if (await users.findById(id)) throw lastAdmin();
+      return null;
     },
     async updatePassword(id, passwordHash) {
       return (await run("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, id])).rowsAffected ? users.findById(id) : null;
     },
     // One write batch, so the user and its sessions go together. Explicit, because remote Turso may not enforce foreign keys.
+    // Sessions are only removed when the user row really went away (the last-ADMIN guard may keep it).
     async delete(id) {
       await ready;
-      const [, del] = await client.batch([
-        { sql: "DELETE FROM sessions WHERE user_id = ?", args: [id] },
-        { sql: "DELETE FROM users WHERE id = ?", args: [id] },
+      const [del] = await client.batch([
+        { sql: `DELETE FROM users WHERE id = ? AND (role <> 'ADMIN' OR ${OTHER_ADMINS})`, args: [id] },
+        { sql: "DELETE FROM sessions WHERE user_id = ? AND NOT EXISTS (SELECT 1 FROM users WHERE id = ?)", args: [id, id] },
       ], "write");
-      return del.rowsAffected > 0;
+      if (del.rowsAffected > 0) return true;
+      if (await users.findById(id)) throw lastAdmin();
+      return false;
     },
   };
   const sessions = {

@@ -79,7 +79,8 @@ password and delete a user (two clicks to confirm). It talks to an API that chec
 
 - Every call needs a live session whose role can access `usuarios` (401 without session, 403 otherwise); changes
   also need a same-origin request (403). Unknown ids are 404.
-- An ADMIN cannot change their own role or delete themselves (409), so there is always at least one ADMIN.
+- An ADMIN cannot change their own role or delete themselves (409). The database write itself also refuses to remove
+  the last ADMIN (409 "Debe quedar al menos un ADMIN."), so two admins acting on each other at once cannot leave none.
 - Role changes apply on the user's next request, because the role is read through the session.
 - `src/proxy.js` does not redirect `/api/*`: API routes answer JSON errors instead of the login page.
 

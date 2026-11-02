@@ -1,7 +1,7 @@
 import { SECTIONS, canAccess } from "../../domain/roles.js";
 import { json, readJsonObject, readSessionToken, sameOrigin } from "./handlers.js";
 
-const STATUS = { NOT_FOUND: 404, EMAIL_TAKEN: 409, SELF_ROLE: 409, SELF_DELETE: 409 };
+const STATUS = { NOT_FOUND: 404, EMAIL_TAKEN: 409, SELF_ROLE: 409, SELF_DELETE: 409, LAST_ADMIN: 409 };
 const INVALID = () => json(400, { error: "Solicitud inválida." });
 const parseId = (raw) => (/^\d{1,15}$/.test(String(raw)) ? Number(raw) : null);
 

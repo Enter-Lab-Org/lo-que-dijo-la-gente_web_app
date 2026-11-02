@@ -65,6 +65,29 @@ export function describeRepositoryContract(name, createDb) {
       expect(await db.users.delete(user.id)).toBe(false);
     });
 
+    it("never leaves zero ADMINs, even when two admins act on each other at the same time", async () => {
+      const a = await db.users.create({ email: "a@example.com", passwordHash: "h", role: "ADMIN", createdAt: 1 });
+      const b = await db.users.create({ email: "b@example.com", passwordHash: "h", role: "ADMIN", createdAt: 1 });
+      await db.sessions.create({ tokenHash: "sa", userId: a.id, expiresAt: 500, createdAt: 1 });
+      const demotions = await Promise.allSettled([db.users.updateRole(a.id, "GUEST"), db.users.updateRole(b.id, "GUEST")]);
+      expect(demotions.filter((r) => r.status === "rejected").map((r) => r.reason.code)).toEqual(["LAST_ADMIN"]);
+      expect((await db.users.list()).filter((u) => u.role === "ADMIN")).toHaveLength(1);
+      const [last] = (await db.users.list()).filter((u) => u.role === "ADMIN");
+      await expect(db.users.delete(last.id)).rejects.toMatchObject({ code: "LAST_ADMIN" });
+      await expect(db.users.updateRole(last.id, "OPERADOR")).rejects.toMatchObject({ code: "LAST_ADMIN" });
+      expect(await db.users.updateRole(last.id, "ADMIN")).toMatchObject({ role: "ADMIN" });
+      expect(await db.users.findById(last.id)).not.toBeNull();
+      if (last.id === a.id) expect(await db.sessions.findByTokenHash("sa")).not.toBeNull();
+    });
+
+    it("rejects concurrent mutual deletes of the last two ADMINs, keeping one", async () => {
+      const a = await db.users.create({ email: "a@example.com", passwordHash: "h", role: "ADMIN", createdAt: 1 });
+      const b = await db.users.create({ email: "b@example.com", passwordHash: "h", role: "ADMIN", createdAt: 1 });
+      const results = await Promise.allSettled([db.users.delete(a.id), db.users.delete(b.id)]);
+      expect(results.filter((r) => r.status === "rejected").map((r) => r.reason.code)).toEqual(["LAST_ADMIN"]);
+      expect((await db.users.list()).map((u) => u.role)).toEqual(["ADMIN"]);
+    });
+
     it("deletes all sessions of one user only", async () => {
       const user = await db.users.create({ email: "s1@example.com", passwordHash: "h", createdAt: 1 });
       const other = await db.users.create({ email: "s2@example.com", passwordHash: "h", createdAt: 1 });

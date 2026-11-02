@@ -156,6 +156,17 @@ describe("user administration", () => {
     expect((await auth.login({ email: "op@b.co", password: "nueva-clave-1" })).ok).toBe(true);
   });
 
+  it("refuses to leave the system without an ADMIN (409 message)", async () => {
+    const { auth, db, me, other } = await admin();
+    const second = await auth.createUser({ email: "admin2@b.co", password: "secreto123", role: "ADMIN" });
+    await db.users.updateRole(me.id, "GUEST"); // the other admin was demoted meanwhile
+    await expect(auth.setRole({ actorId: me.id, id: second.id, role: "GUEST" }))
+      .rejects.toMatchObject({ name: "AuthError", code: "LAST_ADMIN", message: "Debe quedar al menos un ADMIN." });
+    await expect(auth.deleteUser({ actorId: me.id, id: second.id })).rejects.toMatchObject({ code: "LAST_ADMIN" });
+    expect((await auth.listUsers()).find((u) => u.id === second.id).role).toBe("ADMIN");
+    expect(other.role).toBe("OPERADOR");
+  });
+
   it("rejects a short password and an unknown user on reset", async () => {
     const { auth, other } = await admin();
     await expect(auth.resetPassword({ id: other.id, password: "corta" })).rejects.toMatchObject({ code: "WEAK_PASSWORD" });
