@@ -13,6 +13,17 @@ export const MIGRATIONS = [
      created_at INTEGER NOT NULL
    );
    CREATE INDEX sessions_expires_at ON sessions(expires_at);`,
+  // 2: roles (see src/domain/roles.js). Users that existed before roles were created by the admin, so they become ADMIN.
+  `ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'GUEST' CHECK (role IN ('ADMIN', 'OPERADOR', 'GUEST'));
+   UPDATE users SET role = 'ADMIN';`,
+  // 3: GUEST removed; its users become OPERADOR (same access). The table is not rebuilt to change the CHECK above,
+  // because dropping users would cascade-delete sessions; triggers refuse anything but ADMIN / OPERADOR instead.
+  // The column default ('GUEST') is unused: adapters always write an explicit role.
+  `UPDATE users SET role = 'OPERADOR' WHERE role = 'GUEST';
+   CREATE TRIGGER users_role_insert BEFORE INSERT ON users WHEN NEW.role NOT IN ('ADMIN', 'OPERADOR')
+     BEGIN SELECT RAISE(ABORT, 'invalid role'); END;
+   CREATE TRIGGER users_role_update BEFORE UPDATE OF role ON users WHEN NEW.role NOT IN ('ADMIN', 'OPERADOR')
+     BEGIN SELECT RAISE(ABORT, 'invalid role'); END;`,
 ];
 
 export function migrate(db) {

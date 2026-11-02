@@ -354,3 +354,13 @@ input[type="email"], input[type="password"] {
 .login-error { margin: 0; color: var(--x); font-weight: 600; }
 .c-user { display: flex; align-items: center; gap: 10px; }
 .c-user-email { color: var(--muted); font-size: .9rem; }
+.c-user-role { font: 700 .72rem/1 var(--body); letter-spacing: .12em; padding: 4px 8px; border: 1px solid currentColor; border-radius: 999px; color: var(--muted); }
+.no-access { display: grid; place-items: center; gap: 14px; padding: 48px 16px; text-align: center; color: var(--muted); }
+
+/* User administration (ADMIN only) */
+.users-tab { display: grid; gap: 16px; }
+.users-tab .hint.err { color: var(--x); }
+.users { width: 100%; border-collapse: collapse; }
+.users th { text-align: left; font: 600 .78rem/1.2 var(--body); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); padding: 8px; }
+.users td { padding: 8px; border-top: 1px solid rgba(255, 255, 255, .08); vertical-align: middle; }
+.users td .row { gap: 8px; flex-wrap: nowrap; }

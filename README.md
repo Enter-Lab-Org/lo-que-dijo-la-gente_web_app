@@ -15,29 +15,98 @@ The game itself runs in the browser (no SSR): fonts are bundled from `src/styles
 | Command | What it does |
 | --- | --- |
 | `npm install` | Install the pinned dependencies |
-| `npm run user:create -- <email>` | Create a user (asks for the password, or reads `LDLG_USER_PASSWORD`) |
+| `npm run user:create -- <email> [--role ADMIN\|OPERADOR]` | Create a user (default role `OPERADOR`; asks for the password, or reads `LDLG_USER_PASSWORD`) |
 | `npm run dev` | Dev server on http://localhost:8081 |
 | `npm test` | Vitest in watch mode (`npm test -- --run` for a single run) |
 | `npm run build` | Production build into `.next/` |
 | `npm start` | Serve the production build on http://localhost:8081 |
 
-Requires Node 22.13+ (uses the built-in `node:sqlite`).
+Requires Node 22.13+ (the `sqlite` driver uses the built-in `node:sqlite`).
 
 ## Login and database
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `DB_DRIVER` | `sqlite` | Database engine. Only `sqlite` for now |
-| `DATABASE_URL` | `data/ldlg.db` | SQLite file (`file:` prefix and `:memory:` accepted). Created on first use |
+| `DB_DRIVER` | `sqlite` | Database engine: `sqlite` (local file, `node:sqlite`) or `libsql` (Turso, via `@libsql/client`) |
+| `DATABASE_URL` | `data/ldlg.db` | `sqlite`: file path (`file:` prefix and `:memory:` accepted), created on first use. `libsql`: required, e.g. `libsql://<db>-<org>.<region>.turso.io` (also `file:` / `:memory:`) |
+| `DATABASE_AUTH_TOKEN` | unset | Turso database token (`libsql` only). Secret: keep it in `.env.local`, never in git |
 | `COOKIE_SECURE` | `true` in production | Set `false` to serve over plain http on a LAN (`localhost` works either way) |
 | `TRUST_PROXY` | unset | Set `1` only behind a reverse proxy that sets `X-Forwarded-For`; enables per-IP rate limits |
 
+- Secrets go in `.env.local` (git-ignored). `npm run dev` / `npm start` and `npm run user:create` all read it. Example:
+
+  ```
+  DB_DRIVER=libsql
+  DATABASE_URL=libsql://<db>-<org>.<region>.turso.io
+  DATABASE_AUTH_TOKEN=<token from the Turso dashboard or `turso db tokens create <db>`>
+  ```
+
+- Both drivers share the schema in `src/server/db/sqlite/migrations.js`; `libsql` tracks applied versions in a
+  `schema_migrations` table and applies pending ones on first use.
 - Passwords are stored as scrypt hashes; the session cookie (`ldlg_session`, HttpOnly, SameSite=Lax, 7 days)
   holds a random token and the database stores only its SHA-256.
 - `src/proxy.js` only checks that the cookie exists; `src/app/page.jsx` validates the session against the database.
 - Failed logins are limited to 5 per email (and IP, with `TRUST_PROXY`) every 15 minutes, in memory.
 - **Changing the engine:** implement the `users` / `sessions` / `close` ports in `src/server/db/<engine>/`, make it pass
   `describeRepositoryContract` (`src/server/db/contract.js`), and register it in `src/server/db/index.js`.
+
+## Roles
+
+Every user has one role: `ADMIN` or `OPERADOR` (the default). Game limits are not defined yet, so both see every game
+section for now; only **Usuarios** (user management) is ADMIN only. Restricting a role is a one-line change.
+
+- `src/domain/roles.js` is the single source: `ROLES`, `SECTIONS` (`juego`, `banco`, `diseno`, `publico`, `usuarios`) and
+  `ACCESS` (role → allowed sections). To limit a role, remove sections from its `ACCESS` list.
+- The role is stored in `users.role` (migration 2; users created before it became `ADMIN`; migration 3 removed the
+  former `GUEST` role, turning those users into `OPERADOR`, and the database now refuses any other value) and read through the
+  session on every request, so a role change applies on the next page load.
+- The console renders only the allowed tabs and panels (blocked ones are not in the page at all) and falls back to
+  the first allowed tab; the public screen (`#publico`) and a console with no allowed tab show a no-access message.
+  A signed-in user with an unknown role sees nothing. The desktop app (no login) shows every game section, never Usuarios.
+- The game data lives in the browser, so these checks shape what the UI offers. Any future server endpoint that
+  reads or changes shared data must check `canAccess(user, section)` on the server as well.
+
+### User management (ADMIN)
+
+The **Usuarios** tab lists the users who can sign in and lets an ADMIN create users, change a role, set a new
+password and delete a user (two clicks to confirm). It talks to an API that checks everything on the server:
+
+| Route | Does |
+| --- | --- |
+| `GET /api/users` | List users (`id`, `email`, `role`, `createdAt`; never password hashes) |
+| `POST /api/users` | Create `{ email, password, role }` → 201; 400 invalid, 409 email taken |
+| `PATCH /api/users/:id` | Exactly one of `{ role }` or `{ password }`; a new password ends that user's sessions |
+| `DELETE /api/users/:id` | Delete the user and its sessions |
+
+- Every call needs a live session whose role can access `usuarios` (401 without session, 403 otherwise); changes
+  also need a same-origin request (403). Unknown ids are 404.
+- An ADMIN cannot change their own role or delete themselves (409). The database write itself also refuses to remove
+  the last ADMIN (409 "Debe quedar al menos un ADMIN."), so two admins acting on each other at once cannot leave none.
+- Role changes apply on the user's next request, because the role is read through the session.
+- `src/proxy.js` does not redirect `/api/*`: API routes answer JSON errors instead of the login page.
+
+## Deploy on Vercel
+
+Vercel runs the app as serverless functions with a read-only, per-instance filesystem, so the `sqlite` file driver
+cannot keep data there. Use `libsql` (Turso).
+
+1. Import the GitHub repo in Vercel (framework preset: Next.js; build and output settings stay default).
+2. Project settings > Environment Variables (Production and Preview):
+
+   | Variable | Value |
+   | --- | --- |
+   | `DB_DRIVER` | `libsql` |
+   | `DATABASE_URL` | `libsql://<db>-<org>.<region>.turso.io` |
+   | `DATABASE_AUTH_TOKEN` | Turso token (mark it Sensitive) |
+   | `TRUST_PROXY` | `1` (Vercel sets `X-Forwarded-For`, enables per-IP rate limits) |
+
+   Without `DB_DRIVER` the app falls back to `sqlite` and fails with a read-only filesystem error.
+3. Create users from your machine against the same database: put the same three variables in `.env.local`
+   and run `npm run user:create -- <email> --role <ROLE>`. There is no signup page.
+4. Optional: set the function region next to the Turso database (Project settings > Functions), e.g. `iad1`
+   or `cle1` for `aws-us-east-2`.
+
+Known limit: the failed-login rate limit is kept in memory, so on Vercel each function instance counts on its own.
 
 ## Structure
 

@@ -3,7 +3,7 @@ export const KEYS = { state: "ldlg-v2", theme: "ldlg-theme-v2", bank: "ldlg-banc
 export const CHANNEL = "ldlg-v2";
 export const PUBLIC_HASH = "#publico";
 
-export const TABS = ["juego", "banco", "diseno"];
+export const TABS = ["juego", "banco", "diseno", "usuarios"];
 export const MAX_ANSWERS = 8;
 export const MAX_STRIKES = 3;
 export const FX_MAX_AGE = 8000;

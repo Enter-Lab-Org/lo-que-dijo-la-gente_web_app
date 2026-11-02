@@ -5,6 +5,7 @@ import { createAudio } from "./audio";
 import { createFiles } from "./files";
 import { prepImage } from "./images";
 import { createProjector } from "./projector";
+import { createUsersApi } from "./usersApi";
 
 /* All side effects the app needs, built once. Tests pass fakes with the same shape. */
 export function createServices(win = window) {
@@ -18,6 +19,8 @@ export function createServices(win = window) {
     files: createFiles({ native, doc: win.document, url: win.URL }),
     images: { prepImage },
     projector: createProjector({ native, win, bus }),
+    // Only the web host has a server; the console shows user management only to a signed-in ADMIN.
+    users: createUsersApi({ fetch: (...args) => win.fetch(...args) }),
     fullscreen: {
       toggle() {
         try {
