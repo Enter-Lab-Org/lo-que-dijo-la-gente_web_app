@@ -10,11 +10,19 @@ export function describeRepositoryContract(name, createDb) {
 
     it("creates a user and finds it by email (case-insensitive) and id", async () => {
       const user = await db.users.create({ email: "host@example.com", passwordHash: "h1", createdAt: 10 });
-      expect(user).toEqual({ id: expect.anything(), email: "host@example.com", passwordHash: "h1", createdAt: 10 });
+      expect(user).toEqual({ id: expect.anything(), email: "host@example.com", passwordHash: "h1", role: "GUEST", createdAt: 10 });
       expect(await db.users.findByEmail("HOST@example.com")).toEqual(user);
       expect(await db.users.findById(user.id)).toEqual(user);
       expect(await db.users.findByEmail("nobody@example.com")).toBeNull();
       expect(await db.users.findById(999999)).toBeNull();
+    });
+
+    it("stores the given role and returns it with the user and the session", async () => {
+      const user = await db.users.create({ email: "op@example.com", passwordHash: "h", role: "OPERADOR", createdAt: 1 });
+      expect(user.role).toBe("OPERADOR");
+      expect((await db.users.findByEmail("op@example.com")).role).toBe("OPERADOR");
+      await db.sessions.create({ tokenHash: "t-op", userId: user.id, expiresAt: 500, createdAt: 1 });
+      expect((await db.sessions.findByTokenHash("t-op")).role).toBe("OPERADOR");
     });
 
     it("rejects a duplicate email with code EMAIL_TAKEN", async () => {
@@ -25,7 +33,7 @@ export function describeRepositoryContract(name, createDb) {
     it("stores sessions by token hash and returns them with the user's email", async () => {
       const user = await db.users.create({ email: "s@example.com", passwordHash: "h", createdAt: 1 });
       await db.sessions.create({ tokenHash: "t1", userId: user.id, expiresAt: 500, createdAt: 1 });
-      expect(await db.sessions.findByTokenHash("t1")).toEqual({ tokenHash: "t1", userId: user.id, email: "s@example.com", expiresAt: 500 });
+      expect(await db.sessions.findByTokenHash("t1")).toEqual({ tokenHash: "t1", userId: user.id, email: "s@example.com", role: "GUEST", expiresAt: 500 });
       expect(await db.sessions.findByTokenHash("other")).toBeNull();
       await db.sessions.delete("t1");
       expect(await db.sessions.findByTokenHash("t1")).toBeNull();

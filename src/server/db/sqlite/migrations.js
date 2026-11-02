@@ -13,6 +13,9 @@ export const MIGRATIONS = [
      created_at INTEGER NOT NULL
    );
    CREATE INDEX sessions_expires_at ON sessions(expires_at);`,
+  // 2: roles (see src/domain/roles.js). Users that existed before roles were created by the admin, so they become ADMIN.
+  `ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'GUEST' CHECK (role IN ('ADMIN', 'OPERADOR', 'GUEST'));
+   UPDATE users SET role = 'ADMIN';`,
 ];
 
 export function migrate(db) {

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { hashPassword, verifyPassword } from "./password.js";
 import { createRateLimiter } from "./rateLimit.js";
+import { DEFAULT_ROLE, ROLE_LIST, isRole } from "../../domain/roles.js";
 
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60_000;
 export const MIN_PASSWORD = 8;
@@ -32,15 +33,16 @@ export function createAuthService({
   let dummyHash = null; // verified for unknown emails so both failures take the same time
 
   return {
-    async createUser({ email, password }) {
+    async createUser({ email, password, role = DEFAULT_ROLE }) {
       const e = normalizeEmail(email);
       if (!EMAIL_RE.test(e) || e.length > 254) throw new AuthError("INVALID_EMAIL", "Correo inválido.");
+      if (!isRole(role)) throw new AuthError("INVALID_ROLE", `Rol inválido. Usa uno de: ${ROLE_LIST.join(", ")}.`);
       if (typeof password !== "string" || password.length < MIN_PASSWORD || password.length > MAX_PASSWORD) {
         throw new AuthError("WEAK_PASSWORD", `La contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`);
       }
       try {
-        const user = await db.users.create({ email: e, passwordHash: await hashPassword(password), createdAt: now() });
-        return { id: user.id, email: user.email };
+        const user = await db.users.create({ email: e, passwordHash: await hashPassword(password), role, createdAt: now() });
+        return { id: user.id, email: user.email, role: user.role };
       } catch (err) {
         if (err.code === "EMAIL_TAKEN") throw new AuthError("EMAIL_TAKEN", "Ya existe un usuario con ese correo.");
         throw err;
@@ -70,7 +72,7 @@ export function createAuthService({
       const t = now(), expiresAt = t + sessionTtlMs;
       await db.sessions.deleteExpired(t);
       await db.sessions.create({ tokenHash: hashToken(token), userId: user.id, expiresAt, createdAt: t });
-      return { ok: true, token, expiresAt, user: { id: user.id, email: user.email } };
+      return { ok: true, token, expiresAt, user: { id: user.id, email: user.email, role: user.role } };
     },
 
     async getSession(token) {
@@ -78,7 +80,7 @@ export function createAuthService({
       const s = await db.sessions.findByTokenHash(hashToken(token));
       if (!s) return null;
       if (s.expiresAt <= now()) { await db.sessions.delete(s.tokenHash); return null; }
-      return { userId: s.userId, email: s.email, expiresAt: s.expiresAt };
+      return { userId: s.userId, email: s.email, role: s.role, expiresAt: s.expiresAt };
     },
 
     async logout(token) {

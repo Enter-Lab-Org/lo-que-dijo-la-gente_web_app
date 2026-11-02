@@ -15,7 +15,7 @@ The game itself runs in the browser (no SSR): fonts are bundled from `src/styles
 | Command | What it does |
 | --- | --- |
 | `npm install` | Install the pinned dependencies |
-| `npm run user:create -- <email>` | Create a user (asks for the password, or reads `LDLG_USER_PASSWORD`) |
+| `npm run user:create -- <email> [--role ADMIN\|OPERADOR\|GUEST]` | Create a user (default role `GUEST`; asks for the password, or reads `LDLG_USER_PASSWORD`) |
 | `npm run dev` | Dev server on http://localhost:8081 |
 | `npm test` | Vitest in watch mode (`npm test -- --run` for a single run) |
 | `npm run build` | Production build into `.next/` |
@@ -50,6 +50,21 @@ Requires Node 22.13+ (the `sqlite` driver uses the built-in `node:sqlite`).
 - **Changing the engine:** implement the `users` / `sessions` / `close` ports in `src/server/db/<engine>/`, make it pass
   `describeRepositoryContract` (`src/server/db/contract.js`), and register it in `src/server/db/index.js`.
 
+## Roles
+
+Every user has one role: `ADMIN`, `OPERADOR` or `GUEST`. Limits are not defined yet, so **all three see everything**
+for now; everything is wired so restricting a role is a one-line change.
+
+- `src/domain/roles.js` is the single source: `ROLES`, `SECTIONS` (`juego`, `banco`, `diseno`, `publico`) and
+  `ACCESS` (role → allowed sections). To limit a role, remove sections from its `ACCESS` list.
+- The role is stored in `users.role` (migration 2; users created before it became `ADMIN`) and read through the
+  session on every request, so a role change applies on the next page load.
+- The console renders only the allowed tabs and panels (blocked ones are not in the page at all) and falls back to
+  the first allowed tab; the public screen (`#publico`) and a console with no allowed tab show a no-access message.
+  A signed-in user with an unknown role sees nothing. The desktop app (no login) is not restricted.
+- The game data lives in the browser, so these checks shape what the UI offers. Any future server endpoint that
+  reads or changes shared data must check `canAccess(user, section)` on the server as well.
+
 ## Deploy on Vercel
 
 Vercel runs the app as serverless functions with a read-only, per-instance filesystem, so the `sqlite` file driver
@@ -67,7 +82,7 @@ cannot keep data there. Use `libsql` (Turso).
 
    Without `DB_DRIVER` the app falls back to `sqlite` and fails with a read-only filesystem error.
 3. Create users from your machine against the same database: put the same three variables in `.env.local`
-   and run `npm run user:create -- <email>`. There is no signup page.
+   and run `npm run user:create -- <email> --role <ROLE>`. There is no signup page.
 4. Optional: set the function region next to the Turso database (Project settings > Functions), e.g. `iad1`
    or `cle1` for `aws-us-east-2`.
 

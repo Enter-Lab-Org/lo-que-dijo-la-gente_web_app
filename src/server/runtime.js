@@ -19,5 +19,5 @@ export const httpConfig = () => ({
 export async function getCurrentUser() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const session = await getAuth().getSession(token);
-  return session ? { id: session.userId, email: session.email } : null;
+  return session ? { id: session.userId, email: session.email, role: session.role } : null;
 }

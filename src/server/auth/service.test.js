@@ -13,7 +13,7 @@ describe("createUser", () => {
   it("normalizes the email and stores only a hash", async () => {
     const { db, auth } = setup();
     const user = await auth.createUser({ email: "  Host@Example.COM ", password: "secreto123" });
-    expect(user).toEqual({ id: expect.any(Number), email: "host@example.com" });
+    expect(user).toEqual({ id: expect.any(Number), email: "host@example.com", role: "GUEST" });
     const row = await db.users.findByEmail("host@example.com");
     expect(row.passwordHash).toMatch(/^scrypt\$/);
     expect(row.passwordHash).not.toContain("secreto123");
@@ -26,6 +26,23 @@ describe("createUser", () => {
     await auth.createUser({ email: "a@b.co", password: "secreto123" });
     await expect(auth.createUser({ email: "A@B.co", password: "secreto123" })).rejects.toMatchObject({ code: "EMAIL_TAKEN" });
   });
+
+  it("stores the requested role and rejects unknown ones", async () => {
+    const { db, auth } = setup();
+    expect((await auth.createUser({ email: "op@b.co", password: "secreto123", role: "OPERADOR" })).role).toBe("OPERADOR");
+    expect((await db.users.findByEmail("op@b.co")).role).toBe("OPERADOR");
+    await expect(auth.createUser({ email: "x@b.co", password: "secreto123", role: "admin" }))
+      .rejects.toMatchObject({ code: "INVALID_ROLE", message: "Rol inválido. Usa uno de: ADMIN, OPERADOR, GUEST." });
+    expect(await db.users.findByEmail("x@b.co")).toBeNull();
+  });
+
+  it("returns the user's role with the login and the session", async () => {
+    const { auth } = setup();
+    await auth.createUser({ email: "admin@b.co", password: "secreto123", role: "ADMIN" });
+    const r = await auth.login({ email: "admin@b.co", password: "secreto123" });
+    expect(r.user.role).toBe("ADMIN");
+    expect((await auth.getSession(r.token)).role).toBe("ADMIN");
+  });
 });
 
 describe("login and sessions", () => {
@@ -33,11 +50,11 @@ describe("login and sessions", () => {
     const { db, auth, now } = setup();
     await auth.createUser({ email: "host@example.com", password: "secreto123" });
     const r = await auth.login({ email: "HOST@example.com", password: "secreto123", ip: "1.1.1.1" });
-    expect(r).toEqual({ ok: true, token: expect.any(String), expiresAt: now() + SESSION_TTL_MS, user: { id: expect.any(Number), email: "host@example.com" } });
+    expect(r).toEqual({ ok: true, token: expect.any(String), expiresAt: now() + SESSION_TTL_MS, user: { id: expect.any(Number), email: "host@example.com", role: "GUEST" } });
     expect(r.token.length).toBeGreaterThanOrEqual(43);
     expect(await db.sessions.findByTokenHash(r.token)).toBeNull();
     expect(await db.sessions.findByTokenHash(hashToken(r.token))).not.toBeNull();
-    expect(await auth.getSession(r.token)).toEqual({ userId: r.user.id, email: "host@example.com", expiresAt: r.expiresAt });
+    expect(await auth.getSession(r.token)).toEqual({ userId: r.user.id, email: "host@example.com", role: "GUEST", expiresAt: r.expiresAt });
   });
 
   it("gives the same generic failure for a wrong password and an unknown email", async () => {
