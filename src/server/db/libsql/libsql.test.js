@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describeRepositoryContract } from "../contract.js";
-import { createLibsqlDatabase } from "./index.js";
+import { createLibsqlDatabase, statements } from "./index.js";
 
 // Same contract as every adapter, run against a local libSQL engine so it needs no network or Turso account.
 describeRepositoryContract("libsql (memory)", () => createLibsqlDatabase({ url: ":memory:" }));
@@ -69,5 +69,54 @@ describe("libsql migration 3 (GUEST removed)", () => {
     expect((await db.sessions.findByTokenHash("tg")).role).toBe("OPERADOR");
     await expect(db.users.create({ email: "n@example.com", passwordHash: "h", role: "GUEST", createdAt: 2 })).rejects.toThrow();
     db.close();
+  });
+});
+
+describe("libsql concurrent startup", () => {
+  let dir;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "ldlg-libsql-")); });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("lets several instances migrate the same new database at once; all of them work", async () => {
+    const url = "file:" + join(dir, "shared.db");
+    const dbs = [1, 2, 3, 4].map(() => createLibsqlDatabase({ url }));
+    const results = await Promise.allSettled(dbs.map((db, i) => db.users.create({ email: `u${i}@example.com`, passwordHash: "h", createdAt: 1 })));
+    expect(results.map((r) => r.status)).toEqual(["fulfilled", "fulfilled", "fulfilled", "fulfilled"]);
+    expect((await dbs[0].users.list()).map((u) => u.role)).toEqual(["OPERADOR", "OPERADOR", "OPERADOR", "OPERADOR"]);
+    const check = createClient({ url });
+    expect((await check.execute("SELECT version FROM schema_migrations ORDER BY version")).rows.map((r) => Number(r.version))).toEqual([1, 2, 3]);
+    check.close();
+    dbs.forEach((db) => db.close());
+  });
+});
+
+describe("libsql migration recovery", () => {
+  let dir;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "ldlg-libsql-")); });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("retries a failed migration on the next query instead of failing until restart", async () => {
+    const url = "file:" + join(dir, "blocked.db");
+    const blocker = createClient({ url });
+    await blocker.execute("CREATE VIEW users AS SELECT 1 AS id"); // makes migration 1 fail
+    const db = createLibsqlDatabase({ url });
+    await expect(db.users.findByEmail("a@example.com")).rejects.toThrow();
+    await blocker.execute("DROP VIEW users");
+    blocker.close();
+    expect((await db.users.create({ email: "a@example.com", passwordHash: "h", createdAt: 1 })).role).toBe("OPERADOR");
+    db.close();
+  });
+});
+
+describe("libsql migration statements", () => {
+  it("splits on ';' but keeps a CREATE TRIGGER body whole", () => {
+    expect(statements(`UPDATE t SET a = 1;
+      CREATE TRIGGER x BEFORE INSERT ON t WHEN NEW.a > 1
+        BEGIN SELECT RAISE(ABORT, 'no'); END;
+      CREATE INDEX i ON t(a);`)).toEqual([
+      "UPDATE t SET a = 1",
+      "CREATE TRIGGER x BEFORE INSERT ON t WHEN NEW.a > 1\n        BEGIN SELECT RAISE(ABORT, 'no'); END",
+      "CREATE INDEX i ON t(a)",
+    ]);
   });
 });
