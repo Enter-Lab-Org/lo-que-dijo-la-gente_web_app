@@ -8,20 +8,20 @@ describe("users API adapter", () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(reply(200, { users: [{ id: 1 }] }))
       .mockResolvedValueOnce(reply(201, { user: { id: 2 } }))
-      .mockResolvedValueOnce(reply(200, { user: { id: 2, role: "GUEST" } }))
+      .mockResolvedValueOnce(reply(200, { user: { id: 2, role: "OPERADOR" } }))
       .mockResolvedValueOnce(reply(200, { user: { id: 2 } }))
       .mockResolvedValueOnce(reply(200, { ok: true }));
     const api = createUsersApi({ fetch });
     expect(await api.list()).toEqual([{ id: 1 }]);
-    expect(await api.create({ email: "a@b.co", password: "secreto123", role: "GUEST" })).toEqual({ id: 2 });
-    expect(await api.setRole(2, "GUEST")).toEqual({ id: 2, role: "GUEST" });
+    expect(await api.create({ email: "a@b.co", password: "secreto123", role: "OPERADOR" })).toEqual({ id: 2 });
+    expect(await api.setRole(2, "OPERADOR")).toEqual({ id: 2, role: "OPERADOR" });
     expect(await api.resetPassword(2, "otra-clave-9")).toEqual({ id: 2 });
     expect(await api.remove(2)).toBeUndefined();
     const json = { "content-type": "application/json" };
     expect(fetch.mock.calls).toEqual([
       ["/api/users", { method: "GET", credentials: "same-origin", headers: {} }],
-      ["/api/users", { method: "POST", credentials: "same-origin", headers: json, body: '{"email":"a@b.co","password":"secreto123","role":"GUEST"}' }],
-      ["/api/users/2", { method: "PATCH", credentials: "same-origin", headers: json, body: '{"role":"GUEST"}' }],
+      ["/api/users", { method: "POST", credentials: "same-origin", headers: json, body: '{"email":"a@b.co","password":"secreto123","role":"OPERADOR"}' }],
+      ["/api/users/2", { method: "PATCH", credentials: "same-origin", headers: json, body: '{"role":"OPERADOR"}' }],
       ["/api/users/2", { method: "PATCH", credentials: "same-origin", headers: json, body: '{"password":"otra-clave-9"}' }],
       ["/api/users/2", { method: "DELETE", credentials: "same-origin", headers: {} }],
     ]);

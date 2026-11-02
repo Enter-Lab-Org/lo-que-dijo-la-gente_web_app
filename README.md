@@ -15,7 +15,7 @@ The game itself runs in the browser (no SSR): fonts are bundled from `src/styles
 | Command | What it does |
 | --- | --- |
 | `npm install` | Install the pinned dependencies |
-| `npm run user:create -- <email> [--role ADMIN\|OPERADOR\|GUEST]` | Create a user (default role `GUEST`; asks for the password, or reads `LDLG_USER_PASSWORD`) |
+| `npm run user:create -- <email> [--role ADMIN\|OPERADOR]` | Create a user (default role `OPERADOR`; asks for the password, or reads `LDLG_USER_PASSWORD`) |
 | `npm run dev` | Dev server on http://localhost:8081 |
 | `npm test` | Vitest in watch mode (`npm test -- --run` for a single run) |
 | `npm run build` | Production build into `.next/` |
@@ -52,12 +52,13 @@ Requires Node 22.13+ (the `sqlite` driver uses the built-in `node:sqlite`).
 
 ## Roles
 
-Every user has one role: `ADMIN`, `OPERADOR` or `GUEST`. Game limits are not defined yet, so all three see every game
+Every user has one role: `ADMIN` or `OPERADOR` (the default). Game limits are not defined yet, so both see every game
 section for now; only **Usuarios** (user management) is ADMIN only. Restricting a role is a one-line change.
 
 - `src/domain/roles.js` is the single source: `ROLES`, `SECTIONS` (`juego`, `banco`, `diseno`, `publico`, `usuarios`) and
   `ACCESS` (role → allowed sections). To limit a role, remove sections from its `ACCESS` list.
-- The role is stored in `users.role` (migration 2; users created before it became `ADMIN`) and read through the
+- The role is stored in `users.role` (migration 2; users created before it became `ADMIN`; migration 3 removed the
+  former `GUEST` role, turning those users into `OPERADOR`, and the database now refuses any other value) and read through the
   session on every request, so a role change applies on the next page load.
 - The console renders only the allowed tabs and panels (blocked ones are not in the page at all) and falls back to
   the first allowed tab; the public screen (`#publico`) and a console with no allowed tab show a no-access message.

@@ -8,19 +8,24 @@ const SQLITE_CONSTRAINT_UNIQUE = 2067;
 const OTHER_ADMINS = "(SELECT COUNT(*) FROM users WHERE role = 'ADMIN') > 1";
 const lastAdmin = () => new DatabaseError("LAST_ADMIN", "At least one ADMIN must remain");
 const toUser = (r) => (r ? { id: Number(r.id), email: r.email, passwordHash: r.password_hash, role: r.role, createdAt: Number(r.created_at) } : null);
-// The shared migrations hold no ";" inside literals, so splitting on it yields whole statements.
-const statements = (sql) => sql.split(";").map((s) => s.trim()).filter(Boolean);
 
 /* Applies pending MIGRATIONS. Versions live in a table (not PRAGMA user_version) so it also works on remote Turso.
-   Each step runs in one write batch, so it is atomic; if another instance migrated first, its version wins. */
+   Each step and its version row run in one write transaction (atomic; triggers with ";" in their body are fine).
+   If another instance migrated first, its version wins. */
 async function migrate(client) {
   await client.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY)");
   const current = async () => Number((await client.execute("SELECT COALESCE(MAX(version), 0) AS v FROM schema_migrations")).rows[0].v);
   for (let version = (await current()) + 1; version <= MIGRATIONS.length; version++) {
+    const tx = await client.transaction("write");
     try {
-      await client.batch([...statements(MIGRATIONS[version - 1]), { sql: "INSERT INTO schema_migrations (version) VALUES (?)", args: [version] }], "write");
+      await tx.executeMultiple(MIGRATIONS[version - 1]);
+      await tx.execute({ sql: "INSERT INTO schema_migrations (version) VALUES (?)", args: [version] });
+      await tx.commit();
     } catch (e) {
+      await tx.rollback().catch(() => {});
       if ((await current()) < version) throw e;
+    } finally {
+      tx.close();
     }
   }
 }

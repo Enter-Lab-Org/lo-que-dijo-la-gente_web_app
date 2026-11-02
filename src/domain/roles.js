@@ -1,10 +1,10 @@
 /* User roles and what each one may see. Shared by the server (database, sessions) and the browser (console views).
    To restrict a role, remove sections from its ACCESS list: tabs and views read only this table. */
 
-export const ROLES = Object.freeze({ ADMIN: "ADMIN", OPERADOR: "OPERADOR", GUEST: "GUEST" });
+export const ROLES = Object.freeze({ ADMIN: "ADMIN", OPERADOR: "OPERADOR" });
 export const ROLE_LIST = Object.freeze(Object.values(ROLES));
-// Least privilege: a user created without an explicit role gets the smallest one.
-export const DEFAULT_ROLE = ROLES.GUEST;
+// A user created without an explicit role is an OPERADOR (the role with fewer permissions).
+export const DEFAULT_ROLE = ROLES.OPERADOR;
 
 // Sections that can be restricted. Values match the console tab keys and the public screen view.
 export const SECTIONS = Object.freeze({ GAME: "juego", BANK: "banco", DESIGN: "diseno", PUBLIC: "publico", USERS: "usuarios" });
@@ -16,7 +16,6 @@ const GAME_SECTIONS = Object.values(SECTIONS).filter((s) => !LOGIN_ONLY.includes
 export const ACCESS = Object.freeze({
   [ROLES.ADMIN]: [...GAME_SECTIONS, SECTIONS.USERS],
   [ROLES.OPERADOR]: GAME_SECTIONS,
-  [ROLES.GUEST]: GAME_SECTIONS,
 });
 
 export const isRole = (role) => ROLE_LIST.includes(role);

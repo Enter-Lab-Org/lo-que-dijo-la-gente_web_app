@@ -37,7 +37,7 @@ describe("user:create command", () => {
     expect(err).toEqual([USAGE, "La contraseña debe tener al menos 8 caracteres.", "Ya existe un usuario con ese correo."]);
   });
 
-  it("creates the user with --role, before or after the email; GUEST when omitted", async () => {
+  it("creates the user with --role, before or after the email; OPERADOR when omitted", async () => {
     const { db, out, io } = setup();
     const env = { LDLG_USER_PASSWORD: "secreto123" }, readPassword = async () => "";
     expect(await createUserCommand({ ...io, args: ["op@b.co", "--role", "OPERADOR"], env, readPassword })).toBe(0);
@@ -46,16 +46,16 @@ describe("user:create command", () => {
     expect(out).toEqual(["Usuario creado: op@b.co", "Usuario creado: ad@b.co", "Usuario creado: gu@b.co"]);
     expect((await db.users.findByEmail("op@b.co")).role).toBe("OPERADOR");
     expect((await db.users.findByEmail("ad@b.co")).role).toBe("ADMIN");
-    expect((await db.users.findByEmail("gu@b.co")).role).toBe("GUEST");
+    expect((await db.users.findByEmail("gu@b.co")).role).toBe("OPERADOR");
   });
 
   it("rejects an unknown role, a --role without value and unknown options, creating nothing", async () => {
     const { db, err, io } = setup();
     const env = { LDLG_USER_PASSWORD: "secreto123" }, readPassword = async () => "";
-    expect(await createUserCommand({ ...io, args: ["a@b.co", "--role", "ROOT"], env, readPassword })).toBe(1);
+    expect(await createUserCommand({ ...io, args: ["a@b.co", "--role", "GUEST"], env, readPassword })).toBe(1);
     expect(await createUserCommand({ ...io, args: ["a@b.co", "--role"], env, readPassword })).toBe(1);
     expect(await createUserCommand({ ...io, args: ["a@b.co", "--admin"], env, readPassword })).toBe(1);
-    expect(err).toEqual(["Rol inválido. Usa uno de: ADMIN, OPERADOR, GUEST.", USAGE, USAGE]);
+    expect(err).toEqual(["Rol inválido. Usa uno de: ADMIN, OPERADOR.", USAGE, USAGE]);
     expect(await db.users.findByEmail("a@b.co")).toBeNull();
   });
 });

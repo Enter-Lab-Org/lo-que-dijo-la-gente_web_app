@@ -63,26 +63,26 @@ describe("/api/users as ADMIN", () => {
   it("POST creates a user (201) and reports validation errors with 400 / 409", async () => {
     const { auth, adminToken } = await setup();
     const post = (body) => call(auth, "POST", "/api/users", { token: adminToken, body });
-    expect(await post({ email: "New@B.co", password: "secreto123", role: "GUEST" }))
-      .toEqual({ status: 201, cache: "no-store", body: { user: { id: expect.any(Number), email: "new@b.co", role: "GUEST", createdAt: 5_000 } } });
-    expect(await post({ email: "new@b.co", password: "secreto123", role: "GUEST" })).toMatchObject({ status: 409, body: { error: "Ya existe un usuario con ese correo." } });
-    expect(await post({ email: "x@b.co", password: "corta", role: "GUEST" })).toMatchObject({ status: 400, body: { error: "La contraseña debe tener al menos 8 caracteres." } });
-    expect(await post({ email: "x@b.co", password: "secreto123", role: "ROOT" })).toMatchObject({ status: 400, body: { error: "Rol inválido. Usa uno de: ADMIN, OPERADOR, GUEST." } });
+    expect(await post({ email: "New@B.co", password: "secreto123" }))
+      .toEqual({ status: 201, cache: "no-store", body: { user: { id: expect.any(Number), email: "new@b.co", role: "OPERADOR", createdAt: 5_000 } } });
+    expect(await post({ email: "new@b.co", password: "secreto123", role: "OPERADOR" })).toMatchObject({ status: 409, body: { error: "Ya existe un usuario con ese correo." } });
+    expect(await post({ email: "x@b.co", password: "corta", role: "OPERADOR" })).toMatchObject({ status: 400, body: { error: "La contraseña debe tener al menos 8 caracteres." } });
+    expect(await post({ email: "x@b.co", password: "secreto123", role: "GUEST" })).toMatchObject({ status: 400, body: { error: "Rol inválido. Usa uno de: ADMIN, OPERADOR." } });
     expect(await post("{not json")).toMatchObject({ status: 400, body: { error: "Solicitud inválida." } });
   });
 
   it("PATCH changes a role or resets a password; not your own role", async () => {
     const { auth, admin, op, adminToken, opToken } = await setup();
     const patch = (id, body) => call(auth, "PATCH", `/api/users/${id}`, { token: adminToken, body }, String(id));
-    expect(await patch(op.id, { role: "GUEST" })).toMatchObject({ status: 200, body: { user: { id: op.id, role: "GUEST" } } });
+    expect(await patch(op.id, { role: "ADMIN" })).toMatchObject({ status: 200, body: { user: { id: op.id, role: "ADMIN" } } });
     expect(await patch(op.id, { password: "otra-clave-9" })).toMatchObject({ status: 200, body: { user: { id: op.id } } });
     expect(await auth.getSession(opToken)).toBeNull();
     expect((await auth.login({ email: "op@b.co", password: "otra-clave-9" })).ok).toBe(true);
-    expect(await patch(admin.id, { role: "GUEST" })).toMatchObject({ status: 409, body: { error: "No puedes cambiar tu propio rol." } });
+    expect(await patch(admin.id, { role: "OPERADOR" })).toMatchObject({ status: 409, body: { error: "No puedes cambiar tu propio rol." } });
     expect(await patch(op.id, {})).toMatchObject({ status: 400, body: { error: "Solicitud inválida." } });
-    expect(await patch(op.id, { role: "ADMIN", password: "corta" })).toMatchObject({ status: 400, body: { error: "Solicitud inválida." } });
-    expect((await auth.listUsers()).find((u) => u.id === op.id).role).toBe("GUEST");
-    expect(await patch(999, { role: "GUEST" })).toMatchObject({ status: 404, body: { error: "Usuario no encontrado." } });
+    expect(await patch(op.id, { role: "OPERADOR", password: "corta" })).toMatchObject({ status: 400, body: { error: "Solicitud inválida." } });
+    expect((await auth.listUsers()).find((u) => u.id === op.id).role).toBe("ADMIN");
+    expect(await patch(999, { role: "OPERADOR" })).toMatchObject({ status: 404, body: { error: "Usuario no encontrado." } });
   });
 
   it("DELETE removes another user; not yourself; unknown or malformed ids are 404", async () => {

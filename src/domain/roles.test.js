@@ -1,9 +1,10 @@
 import { ROLES, DEFAULT_ROLE, SECTIONS, ACCESS, isRole, canAccess, allowedSections } from "./roles";
 
 describe("roles", () => {
-  it("defines exactly ADMIN, OPERADOR and GUEST, with GUEST as the least-privileged default", () => {
-    expect(Object.values(ROLES)).toEqual(["ADMIN", "OPERADOR", "GUEST"]);
-    expect(DEFAULT_ROLE).toBe("GUEST");
+  it("defines exactly ADMIN and OPERADOR, with OPERADOR as the default", () => {
+    expect(Object.values(ROLES)).toEqual(["ADMIN", "OPERADOR"]);
+    expect(DEFAULT_ROLE).toBe("OPERADOR");
+    expect(isRole("GUEST")).toBe(false);
     expect(isRole("OPERADOR")).toBe(true);
     expect(isRole("admin")).toBe(false);
     expect(isRole(undefined)).toBe(false);
@@ -17,15 +18,16 @@ describe("roles", () => {
   });
 
   it("checks a section against the role's access list", () => {
-    const access = { ADMIN: ["juego", "banco"], OPERADOR: ["juego"], GUEST: [] };
+    const access = { ADMIN: ["juego", "banco"], OPERADOR: ["juego"] };
     expect(canAccess({ role: "OPERADOR" }, "juego", access)).toBe(true);
     expect(canAccess({ role: "OPERADOR" }, "banco", access)).toBe(false);
-    expect(canAccess({ role: "GUEST" }, "juego", access)).toBe(false);
+    expect(canAccess({ role: "OPERADOR" }, "diseno", access)).toBe(false);
     expect(allowedSections({ role: "ADMIN" }, access)).toEqual(["juego", "banco"]);
   });
 
   it("denies a signed-in user with an unknown or missing role", () => {
     expect(canAccess({ role: "ROOT" }, "juego")).toBe(false);
+    expect(canAccess({ role: "GUEST" }, "juego")).toBe(false);
     expect(canAccess({ email: "x@y.z" }, "juego")).toBe(false);
     expect(allowedSections({ role: "ROOT" })).toEqual([]);
   });
@@ -41,6 +43,5 @@ describe("roles", () => {
     expect(SECTIONS.USERS).toBe("usuarios");
     expect(allowedSections({ role: "ADMIN" })).toEqual(["juego", "banco", "diseno", "publico", "usuarios"]);
     expect(allowedSections({ role: "OPERADOR" })).toEqual(["juego", "banco", "diseno", "publico"]);
-    expect(allowedSections({ role: "GUEST" })).toEqual(["juego", "banco", "diseno", "publico"]);
   });
 });

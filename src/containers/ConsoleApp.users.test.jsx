@@ -37,7 +37,7 @@ describe("Console · user administration", () => {
     expect(screen.getByRole("tab", { name: "Usuarios" })).toBeInTheDocument();
   });
 
-  it.each([["OPERADOR"], ["GUEST"]])("hides the Usuarios tab and panel from %s", (role) => {
+  it.each([["OPERADOR"], ["ROOT"]])("hides the Usuarios tab and panel from %s", (role) => {
     renderAs({ id: 3, email: "x@b.co", role });
     expect(screen.queryByRole("tab", { name: "Usuarios" })).toBeNull();
     expect(document.getElementById("p-usuarios")).toBeNull();
@@ -76,20 +76,21 @@ describe("Console · user administration", () => {
     expect(await screen.findByText("Ya existe un usuario con ese correo.")).toBeInTheDocument();
   });
 
-  it("new users default to GUEST in the form", async () => {
+  it("new users default to OPERADOR in the form, which offers only ADMIN and OPERADOR", async () => {
     const u = userEvent.setup();
     renderAs(ME);
     await openUsers(u);
-    expect(screen.getByLabelText("Rol")).toHaveValue("GUEST");
+    expect(screen.getByLabelText("Rol")).toHaveValue("OPERADOR");
+    expect(within(screen.getByLabelText("Rol")).getAllByRole("option").map((o) => o.value)).toEqual(["ADMIN", "OPERADOR"]);
   });
 
   it("changes another user's role; your own role and delete are locked", async () => {
     const u = userEvent.setup();
     const api = renderAs(ME);
     const table = await openUsers(u);
-    await u.selectOptions(within(row(table, "op@b.co")).getByRole("combobox", { name: "Rol de op@b.co" }), "GUEST");
-    expect(api.setRole).toHaveBeenCalledWith(2, "GUEST");
-    expect(await screen.findByText("Rol de op@b.co: GUEST")).toBeInTheDocument();
+    await u.selectOptions(within(row(table, "op@b.co")).getByRole("combobox", { name: "Rol de op@b.co" }), "ADMIN");
+    expect(api.setRole).toHaveBeenCalledWith(2, "ADMIN");
+    expect(await screen.findByText("Rol de op@b.co: ADMIN")).toBeInTheDocument();
     expect(within(row(table, "admin@b.co")).getByRole("combobox", { name: "Rol de admin@b.co" })).toBeDisabled();
     expect(within(row(table, "admin@b.co")).getByRole("button", { name: "Eliminar" })).toBeDisabled();
   });

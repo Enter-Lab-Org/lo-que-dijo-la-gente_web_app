@@ -7,13 +7,13 @@ import { fakeServices, storageWithGame, question } from "../test/fixtures";
 const win = (hash = "") => ({ location: { hash }, addEventListener() {}, removeEventListener() {} });
 const tabNames = () => screen.queryAllByRole("tab").map((t) => t.textContent);
 // Restricted table injected for the tests: the real ACCESS grants everything for now.
-const access = { ADMIN: ["juego", "banco", "diseno", "publico"], OPERADOR: ["juego"], GUEST: [] };
+const access = { ADMIN: ["juego", "banco", "diseno", "publico"], OPERADOR: ["juego"] };
 
 describe("Console · roles", () => {
   it("shows every section and the role to a user whose role allows all (current real table)", () => {
-    render(<App services={fakeServices({ storage: storageWithGame([question("a")]) })} user={{ email: "g@x.co", role: "GUEST" }} onLogout={() => {}} />);
+    render(<App services={fakeServices({ storage: storageWithGame([question("a")]) })} user={{ email: "g@x.co", role: "OPERADOR" }} onLogout={() => {}} />);
     expect(tabNames()).toEqual(["Juego", "Banco de preguntas", "Diseño"]);
-    expect(screen.getByText("GUEST")).toBeInTheDocument();
+    expect(screen.getByText("OPERADOR")).toBeInTheDocument();
   });
 
   it("only renders the tabs and panels the role may access", () => {
@@ -35,7 +35,7 @@ describe("Console · roles", () => {
   });
 
   it("shows a no-access message, with logout, when the role has no console section", () => {
-    render(<App services={fakeServices({ storage: storageWithGame([question("a")]) })} access={access} user={{ email: "g@x.co", role: "GUEST" }} onLogout={() => {}} />);
+    render(<App services={fakeServices({ storage: storageWithGame([question("a")]) })} access={{ ...access, OPERADOR: [] }} user={{ email: "g@x.co", role: "OPERADOR" }} onLogout={() => {}} />);
     expect(tabNames()).toEqual([]);
     expect(screen.getByText("Tu usuario no tiene acceso a esta sección.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
