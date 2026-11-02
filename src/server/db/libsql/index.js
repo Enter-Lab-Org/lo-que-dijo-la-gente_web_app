@@ -46,6 +46,22 @@ export function createLibsqlDatabase({ url, authToken } = {}) {
         throw e;
       }
     },
+    async list() { return (await run("SELECT * FROM users ORDER BY email")).rows.map(toUser); },
+    async updateRole(id, role) {
+      return (await run("UPDATE users SET role = ? WHERE id = ?", [role, id])).rowsAffected ? users.findById(id) : null;
+    },
+    async updatePassword(id, passwordHash) {
+      return (await run("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, id])).rowsAffected ? users.findById(id) : null;
+    },
+    // One write batch, so the user and its sessions go together. Explicit, because remote Turso may not enforce foreign keys.
+    async delete(id) {
+      await ready;
+      const [, del] = await client.batch([
+        { sql: "DELETE FROM sessions WHERE user_id = ?", args: [id] },
+        { sql: "DELETE FROM users WHERE id = ?", args: [id] },
+      ], "write");
+      return del.rowsAffected > 0;
+    },
   };
   const sessions = {
     async create({ tokenHash, userId, expiresAt, createdAt }) {
@@ -57,6 +73,7 @@ export function createLibsqlDatabase({ url, authToken } = {}) {
     },
     async delete(tokenHash) { await run("DELETE FROM sessions WHERE token_hash = ?", [tokenHash]); },
     async deleteExpired(now) { await run("DELETE FROM sessions WHERE expires_at <= ?", [now]); },
+    async deleteByUser(userId) { await run("DELETE FROM sessions WHERE user_id = ?", [userId]); },
   };
   return { users, sessions, close: () => client.close() };
 }

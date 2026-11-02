@@ -13,7 +13,7 @@ describe("createUser", () => {
   it("normalizes the email and stores only a hash", async () => {
     const { db, auth } = setup();
     const user = await auth.createUser({ email: "  Host@Example.COM ", password: "secreto123" });
-    expect(user).toEqual({ id: expect.any(Number), email: "host@example.com", role: "GUEST" });
+    expect(user).toEqual({ id: expect.any(Number), email: "host@example.com", role: "GUEST", createdAt: 1_000 });
     const row = await db.users.findByEmail("host@example.com");
     expect(row.passwordHash).toMatch(/^scrypt\$/);
     expect(row.passwordHash).not.toContain("secreto123");
@@ -113,5 +113,62 @@ describe("login and sessions", () => {
     expect(await auth.getSession("")).toBeNull();
     expect(await auth.getSession(undefined)).toBeNull();
     await expect(auth.logout(undefined)).resolves.toBeUndefined();
+  });
+});
+
+describe("user administration", () => {
+  const admin = async () => {
+    const ctx = setup();
+    const me = await ctx.auth.createUser({ email: "admin@b.co", password: "secreto123", role: "ADMIN" });
+    const other = await ctx.auth.createUser({ email: "op@b.co", password: "secreto123", role: "OPERADOR" });
+    return { ...ctx, me, other };
+  };
+
+  it("lists users without password hashes", async () => {
+    const { auth } = await admin();
+    expect(await auth.listUsers()).toEqual([
+      { id: expect.any(Number), email: "admin@b.co", role: "ADMIN", createdAt: 1_000 },
+      { id: expect.any(Number), email: "op@b.co", role: "OPERADOR", createdAt: 1_000 },
+    ]);
+  });
+
+  it("changes another user's role; the session sees it on the next request", async () => {
+    const { auth, me, other } = await admin();
+    const { token } = await auth.login({ email: "op@b.co", password: "secreto123" });
+    expect(await auth.setRole({ actorId: me.id, id: other.id, role: "GUEST" })).toEqual({ id: other.id, email: "op@b.co", role: "GUEST", createdAt: 1_000 });
+    expect((await auth.getSession(token)).role).toBe("GUEST");
+  });
+
+  it("rejects changing your own role, an unknown role and an unknown user", async () => {
+    const { auth, me, other } = await admin();
+    await expect(auth.setRole({ actorId: me.id, id: me.id, role: "GUEST" })).rejects.toMatchObject({ code: "SELF_ROLE", message: "No puedes cambiar tu propio rol." });
+    await expect(auth.setRole({ actorId: me.id, id: other.id, role: "ROOT" })).rejects.toMatchObject({ code: "INVALID_ROLE" });
+    await expect(auth.setRole({ actorId: me.id, id: 999, role: "GUEST" })).rejects.toMatchObject({ code: "NOT_FOUND", message: "Usuario no encontrado." });
+    expect((await auth.listUsers()).map((u) => u.role)).toEqual(["ADMIN", "OPERADOR"]);
+  });
+
+  it("resets a password: the new one works, the old one does not, and the user's sessions end", async () => {
+    const { auth, other } = await admin();
+    const { token } = await auth.login({ email: "op@b.co", password: "secreto123" });
+    expect(await auth.resetPassword({ id: other.id, password: "nueva-clave-1" })).toMatchObject({ id: other.id, email: "op@b.co" });
+    expect(await auth.getSession(token)).toBeNull();
+    expect((await auth.login({ email: "op@b.co", password: "secreto123" })).ok).toBe(false);
+    expect((await auth.login({ email: "op@b.co", password: "nueva-clave-1" })).ok).toBe(true);
+  });
+
+  it("rejects a short password and an unknown user on reset", async () => {
+    const { auth, other } = await admin();
+    await expect(auth.resetPassword({ id: other.id, password: "corta" })).rejects.toMatchObject({ code: "WEAK_PASSWORD" });
+    await expect(auth.resetPassword({ id: 999, password: "secreto123" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("deletes another user and its sessions, but never yourself", async () => {
+    const { auth, me, other } = await admin();
+    const { token } = await auth.login({ email: "op@b.co", password: "secreto123" });
+    await auth.deleteUser({ actorId: me.id, id: other.id });
+    expect(await auth.getSession(token)).toBeNull();
+    expect((await auth.listUsers()).map((u) => u.email)).toEqual(["admin@b.co"]);
+    await expect(auth.deleteUser({ actorId: me.id, id: me.id })).rejects.toMatchObject({ code: "SELF_DELETE", message: "No puedes eliminar tu propio usuario." });
+    await expect(auth.deleteUser({ actorId: me.id, id: other.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });

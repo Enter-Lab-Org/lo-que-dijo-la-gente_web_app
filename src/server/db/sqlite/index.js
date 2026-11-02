@@ -27,6 +27,11 @@ export function createSqliteDatabase({ url = DEFAULT_SQLITE_URL } = {}) {
     session: db.prepare("SELECT s.token_hash, s.user_id, s.expires_at, u.email, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?"),
     deleteSession: db.prepare("DELETE FROM sessions WHERE token_hash = ?"),
     deleteExpired: db.prepare("DELETE FROM sessions WHERE expires_at <= ?"),
+    listUsers: db.prepare("SELECT * FROM users ORDER BY email"),
+    updateRole: db.prepare("UPDATE users SET role = ? WHERE id = ?"),
+    updatePassword: db.prepare("UPDATE users SET password_hash = ? WHERE id = ?"),
+    deleteUser: db.prepare("DELETE FROM users WHERE id = ?"),
+    deleteUserSessions: db.prepare("DELETE FROM sessions WHERE user_id = ?"),
   };
 
   // Async like any networked engine will be, so callers never depend on SQLite being synchronous.
@@ -42,6 +47,14 @@ export function createSqliteDatabase({ url = DEFAULT_SQLITE_URL } = {}) {
         throw e;
       }
     },
+    async list() { return q.listUsers.all().map(toUser); },
+    async updateRole(id, role) { return q.updateRole.run(role, id).changes ? toUser(q.userById.get(id)) : null; },
+    async updatePassword(id, passwordHash) { return q.updatePassword.run(passwordHash, id).changes ? toUser(q.userById.get(id)) : null; },
+    // Sessions are removed explicitly too, so this does not depend on foreign keys being enforced.
+    async delete(id) {
+      q.deleteUserSessions.run(id);
+      return q.deleteUser.run(id).changes > 0;
+    },
   };
 
   const sessions = {
@@ -52,6 +65,7 @@ export function createSqliteDatabase({ url = DEFAULT_SQLITE_URL } = {}) {
     },
     async delete(tokenHash) { q.deleteSession.run(tokenHash); },
     async deleteExpired(now) { q.deleteExpired.run(now); },
+    async deleteByUser(userId) { q.deleteUserSessions.run(userId); },
   };
 
   return { users, sessions, close: () => db.close() };

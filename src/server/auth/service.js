@@ -21,6 +21,16 @@ export const normalizeEmail = (email) => (typeof email === "string" ? email.trim
 export const hashToken = (token) => createHash("sha256").update(token).digest("base64url");
 
 const FAILED = { ok: false, reason: "INVALID_CREDENTIALS" };
+const publicUser = (u) => ({ id: u.id, email: u.email, role: u.role, createdAt: u.createdAt });
+const notFound = () => new AuthError("NOT_FOUND", "Usuario no encontrado.");
+function checkPassword(password) {
+  if (typeof password !== "string" || password.length < MIN_PASSWORD || password.length > MAX_PASSWORD) {
+    throw new AuthError("WEAK_PASSWORD", `La contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`);
+  }
+}
+function checkRole(role) {
+  if (!isRole(role)) throw new AuthError("INVALID_ROLE", `Rol inválido. Usa uno de: ${ROLE_LIST.join(", ")}.`);
+}
 
 /* Login use cases over the repository ports. db: { users, sessions } from ../db. */
 export function createAuthService({
@@ -36,13 +46,11 @@ export function createAuthService({
     async createUser({ email, password, role = DEFAULT_ROLE }) {
       const e = normalizeEmail(email);
       if (!EMAIL_RE.test(e) || e.length > 254) throw new AuthError("INVALID_EMAIL", "Correo inválido.");
-      if (!isRole(role)) throw new AuthError("INVALID_ROLE", `Rol inválido. Usa uno de: ${ROLE_LIST.join(", ")}.`);
-      if (typeof password !== "string" || password.length < MIN_PASSWORD || password.length > MAX_PASSWORD) {
-        throw new AuthError("WEAK_PASSWORD", `La contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`);
-      }
+      checkRole(role);
+      checkPassword(password);
       try {
         const user = await db.users.create({ email: e, passwordHash: await hashPassword(password), role, createdAt: now() });
-        return { id: user.id, email: user.email, role: user.role };
+        return publicUser(user);
       } catch (err) {
         if (err.code === "EMAIL_TAKEN") throw new AuthError("EMAIL_TAKEN", "Ya existe un usuario con ese correo.");
         throw err;
@@ -81,6 +89,32 @@ export function createAuthService({
       if (!s) return null;
       if (s.expiresAt <= now()) { await db.sessions.delete(s.tokenHash); return null; }
       return { userId: s.userId, email: s.email, role: s.role, expiresAt: s.expiresAt };
+    },
+
+    /* User administration. The caller (HTTP layer) has already checked that the actor may manage users.
+       actorId is the signed-in admin: they cannot change their own role or delete themselves, so an ADMIN always remains. */
+    async listUsers() { return (await db.users.list()).map(publicUser); },
+
+    async setRole({ actorId, id, role }) {
+      checkRole(role);
+      if (id === actorId) throw new AuthError("SELF_ROLE", "No puedes cambiar tu propio rol.");
+      const user = await db.users.updateRole(id, role);
+      if (!user) throw notFound();
+      return publicUser(user);
+    },
+
+    // Ends every session of that user, so a leaked or old password stops working right away.
+    async resetPassword({ id, password }) {
+      checkPassword(password);
+      const user = await db.users.updatePassword(id, await hashPassword(password));
+      if (!user) throw notFound();
+      await db.sessions.deleteByUser(id);
+      return publicUser(user);
+    },
+
+    async deleteUser({ actorId, id }) {
+      if (id === actorId) throw new AuthError("SELF_DELETE", "No puedes eliminar tu propio usuario.");
+      if (!(await db.users.delete(id))) throw notFound();
     },
 
     async logout(token) {

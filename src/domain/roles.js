@@ -7,22 +7,24 @@ export const ROLE_LIST = Object.freeze(Object.values(ROLES));
 export const DEFAULT_ROLE = ROLES.GUEST;
 
 // Sections that can be restricted. Values match the console tab keys and the public screen view.
-export const SECTIONS = Object.freeze({ GAME: "juego", BANK: "banco", DESIGN: "diseno", PUBLIC: "publico" });
-const ALL = Object.values(SECTIONS);
+export const SECTIONS = Object.freeze({ GAME: "juego", BANK: "banco", DESIGN: "diseno", PUBLIC: "publico", USERS: "usuarios" });
+// Sections that need the web server and a signed-in user; a host without login never shows them.
+const LOGIN_ONLY = [SECTIONS.USERS];
+const GAME_SECTIONS = Object.values(SECTIONS).filter((s) => !LOGIN_ONLY.includes(s));
 
-// Limits are not defined yet, so every role sees everything for now.
+// Game limits are not defined yet, so every role sees every game section. User management is ADMIN only.
 export const ACCESS = Object.freeze({
-  [ROLES.ADMIN]: ALL,
-  [ROLES.OPERADOR]: ALL,
-  [ROLES.GUEST]: ALL,
+  [ROLES.ADMIN]: [...GAME_SECTIONS, SECTIONS.USERS],
+  [ROLES.OPERADOR]: GAME_SECTIONS,
+  [ROLES.GUEST]: GAME_SECTIONS,
 });
 
 export const isRole = (role) => ROLE_LIST.includes(role);
 
-// No user means a host without login (the desktop app): nothing to restrict.
+// No user means a host without login (the desktop app): every game section, never the login-only ones.
 // A signed-in user with an unknown role sees nothing (fail closed).
 export function allowedSections(user, access = ACCESS) {
-  if (!user) return ALL;
+  if (!user) return [...GAME_SECTIONS];
   return isRole(user.role) ? [...(access[user.role] ?? [])] : [];
 }
 

@@ -30,12 +30,17 @@ describe("roles", () => {
     expect(allowedSections({ role: "ROOT" })).toEqual([]);
   });
 
-  it("allows everything when there is no user at all (desktop app, which has no login)", () => {
-    expect(allowedSections(null)).toEqual(Object.values(SECTIONS));
+  it("allows everything but user management when there is no user at all (desktop app, which has no login)", () => {
+    expect(allowedSections(null)).toEqual(["juego", "banco", "diseno", "publico"]);
     expect(canAccess(null, "diseno")).toBe(true);
+    expect(canAccess(null, "usuarios")).toBe(false);
+    expect(allowedSections(null, { ADMIN: [] })).toEqual(["juego", "banco", "diseno", "publico"]);
   });
 
-  it("grants every section to every role for now (limits are not defined yet)", () => {
-    for (const role of Object.values(ROLES)) expect(allowedSections({ role })).toEqual(Object.values(SECTIONS));
+  it("gives the users section only to ADMIN; the other sections to every role (limits not defined yet)", () => {
+    expect(SECTIONS.USERS).toBe("usuarios");
+    expect(allowedSections({ role: "ADMIN" })).toEqual(["juego", "banco", "diseno", "publico", "usuarios"]);
+    expect(allowedSections({ role: "OPERADOR" })).toEqual(["juego", "banco", "diseno", "publico"]);
+    expect(allowedSections({ role: "GUEST" })).toEqual(["juego", "banco", "diseno", "publico"]);
   });
 });

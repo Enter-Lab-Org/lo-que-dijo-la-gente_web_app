@@ -2,18 +2,26 @@
 export const SESSION_COOKIE = "ldlg_session";
 const MAX_BODY = 10_000;
 
-const json = (status, body, headers = {}) =>
+export const json = (status, body, headers = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store", ...headers } });
 
 const cookie = (value, lifetime, secure = false) =>
   [`${SESSION_COOKIE}=${value}`, "Path=/", lifetime, "HttpOnly", "SameSite=Lax", ...(secure ? ["Secure"] : [])].join("; ");
 
 // State-changing requests must come from our own pages. Browsers always send Origin on fetch POSTs.
-function sameOrigin(request) {
+export function sameOrigin(request) {
   const origin = request.headers.get("origin");
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
   if (!origin || !host) return false;
   try { return new URL(origin).host === host; } catch (e) { return false; }
+}
+
+// Parsed JSON object body, or null when it is too large, malformed or not an object.
+export async function readJsonObject(request) {
+  const text = await request.text();
+  let body = null;
+  try { body = text.length <= MAX_BODY ? JSON.parse(text) : null; } catch (e) { body = null; }
+  return body && typeof body === "object" && !Array.isArray(body) ? body : null;
 }
 
 export function readSessionToken(cookieHeader) {
@@ -33,10 +41,8 @@ export function clientIp(request, { trustProxy = false } = {}) {
 
 export async function handleLogin(request, { auth, secureCookie = true, trustProxy = false }) {
   if (!sameOrigin(request)) return json(403, { error: "Origen no permitido." });
-  const text = await request.text();
-  let body = null;
-  try { body = text.length <= MAX_BODY ? JSON.parse(text) : null; } catch (e) { body = null; }
-  if (!body || typeof body !== "object" || Array.isArray(body)) return json(400, { error: "Solicitud inválida." });
+  const body = await readJsonObject(request);
+  if (!body) return json(400, { error: "Solicitud inválida." });
 
   const r = await auth.login({ email: body.email, password: body.password, ip: clientIp(request, { trustProxy }) });
   if (r.reason === "RATE_LIMITED") {
