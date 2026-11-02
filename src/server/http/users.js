@@ -1,4 +1,3 @@
-import { AuthError } from "../auth/service.js";
 import { SECTIONS, canAccess } from "../../domain/roles.js";
 import { json, readJsonObject, readSessionToken, sameOrigin } from "./handlers.js";
 
@@ -47,7 +46,8 @@ export async function handleUsers(request, { auth, id = null }) {
       : await auth.resetPassword({ id: target, password: body.password });
     return json(200, { user });
   } catch (e) {
-    if (e instanceof AuthError) return json(STATUS[e.code] ?? 400, { error: e.message });
+    // By name, not instanceof: Next bundles each route apart, and the shared auth service may come from another copy.
+    if (e?.name === "AuthError") return json(STATUS[e.code] ?? 400, { error: e.message });
     throw e;
   }
 }

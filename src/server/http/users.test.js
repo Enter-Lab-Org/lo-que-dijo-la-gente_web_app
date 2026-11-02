@@ -101,3 +101,14 @@ describe("/api/users as ADMIN", () => {
     expect(await call(auth, "POST", `/api/users/${op.id}`, { token: adminToken, body: {} }, String(op.id))).toMatchObject({ status: 405 });
   });
 });
+
+describe("/api/users error mapping across bundles", () => {
+  it("maps an AuthError created by another copy of the class (Next bundles each route apart)", async () => {
+    const { auth, adminToken } = await setup();
+    const foreign = Object.assign(new Error("Ya existe un usuario con ese correo."), { name: "AuthError", code: "EMAIL_TAKEN" });
+    const stub = { ...auth, createUser: async () => { throw foreign; } };
+    const res = await handleUsers(req("POST", "/api/users", { token: adminToken, body: { email: "a@b.co", password: "secreto123" } }), { auth: stub });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "Ya existe un usuario con ese correo." });
+  });
+});

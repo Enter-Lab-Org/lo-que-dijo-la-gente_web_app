@@ -52,18 +52,36 @@ Requires Node 22.13+ (the `sqlite` driver uses the built-in `node:sqlite`).
 
 ## Roles
 
-Every user has one role: `ADMIN`, `OPERADOR` or `GUEST`. Limits are not defined yet, so **all three see everything**
-for now; everything is wired so restricting a role is a one-line change.
+Every user has one role: `ADMIN`, `OPERADOR` or `GUEST`. Game limits are not defined yet, so all three see every game
+section for now; only **Usuarios** (user management) is ADMIN only. Restricting a role is a one-line change.
 
-- `src/domain/roles.js` is the single source: `ROLES`, `SECTIONS` (`juego`, `banco`, `diseno`, `publico`) and
+- `src/domain/roles.js` is the single source: `ROLES`, `SECTIONS` (`juego`, `banco`, `diseno`, `publico`, `usuarios`) and
   `ACCESS` (role → allowed sections). To limit a role, remove sections from its `ACCESS` list.
 - The role is stored in `users.role` (migration 2; users created before it became `ADMIN`) and read through the
   session on every request, so a role change applies on the next page load.
 - The console renders only the allowed tabs and panels (blocked ones are not in the page at all) and falls back to
   the first allowed tab; the public screen (`#publico`) and a console with no allowed tab show a no-access message.
-  A signed-in user with an unknown role sees nothing. The desktop app (no login) is not restricted.
+  A signed-in user with an unknown role sees nothing. The desktop app (no login) shows every game section, never Usuarios.
 - The game data lives in the browser, so these checks shape what the UI offers. Any future server endpoint that
   reads or changes shared data must check `canAccess(user, section)` on the server as well.
+
+### User management (ADMIN)
+
+The **Usuarios** tab lists the users who can sign in and lets an ADMIN create users, change a role, set a new
+password and delete a user (two clicks to confirm). It talks to an API that checks everything on the server:
+
+| Route | Does |
+| --- | --- |
+| `GET /api/users` | List users (`id`, `email`, `role`, `createdAt`; never password hashes) |
+| `POST /api/users` | Create `{ email, password, role }` → 201; 400 invalid, 409 email taken |
+| `PATCH /api/users/:id` | Exactly one of `{ role }` or `{ password }`; a new password ends that user's sessions |
+| `DELETE /api/users/:id` | Delete the user and its sessions |
+
+- Every call needs a live session whose role can access `usuarios` (401 without session, 403 otherwise); changes
+  also need a same-origin request (403). Unknown ids are 404.
+- An ADMIN cannot change their own role or delete themselves (409), so there is always at least one ADMIN.
+- Role changes apply on the user's next request, because the role is read through the session.
+- `src/proxy.js` does not redirect `/api/*`: API routes answer JSON errors instead of the login page.
 
 ## Deploy on Vercel
 

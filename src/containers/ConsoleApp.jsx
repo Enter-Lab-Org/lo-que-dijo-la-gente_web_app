@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { pubState } from "../domain/game";
 import { TABS } from "../domain/constants";
+import { SECTIONS, allowedSections } from "../domain/roles";
 import { useServices } from "../hooks/services";
 import { loadConsole } from "../hooks/loadConsole";
 import { useGame } from "../hooks/useGame";
@@ -13,11 +14,12 @@ import ProjectorContainer from "./ProjectorContainer";
 import GameTab from "./GameTab";
 import BankTab from "./BankTab";
 import DesignTab from "./DesignTab";
+import UsersTab from "./UsersTab";
 import NoAccess from "../components/auth/NoAccess";
 
 /* The host console: wires the game, bank and theme containers to the adapters.
    sections: what the user's role may see (src/domain/roles.js); blocked tabs are not rendered at all. */
-export default function ConsoleApp({ user = null, onLogout = null, sections = TABS }) {
+export default function ConsoleApp({ user = null, onLogout = null, sections = allowedSections(null) }) {
   const services = useServices();
   const { storage, bus } = services;
   const [boot] = useState(() => loadConsole(storage));
@@ -44,10 +46,11 @@ export default function ConsoleApp({ user = null, onLogout = null, sections = TA
     <div className="ctl" id="ctl">
       <ConsoleHeader tab={tab} tabs={tabs} onTab={goTo} native={services.native} user={user} onLogout={onLogout} />
       {tabs.length === 0 && <NoAccess />}
-      {tabs.length > 0 && <ProjectorContainer projector={services.projector} />}
+      {tabs.length > 0 && sections.includes(SECTIONS.PUBLIC) && <ProjectorContainer projector={services.projector} />}
       {tabs.includes("juego") && <section {...pane("juego")}><GameTab game={game} theme={themeStore.theme} onGoto={goTo} /></section>}
       {tabs.includes("banco") && <section {...pane("banco")}><BankTab bankStore={bankStore} game={game} themeStore={themeStore} files={services.files} /></section>}
       {tabs.includes("diseno") && <section {...pane("diseno")}><DesignTab themeStore={themeStore} pub={game.pub} images={services.images} /></section>}
+      {tabs.includes("usuarios") && services.users && <section {...pane("usuarios")}>{tab === "usuarios" && <UsersTab api={services.users} currentUserId={user?.id} />}</section>}
     </div>
   );
 }
