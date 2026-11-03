@@ -2,6 +2,7 @@ import { createClient } from "@libsql/client";
 import { DatabaseError } from "../errors.js";
 import { MIGRATIONS } from "../sqlite/migrations.js";
 import { DEFAULT_ROLE } from "../../../domain/roles.js";
+import { BANK_SQL, ORDER, categoryNotFound, categoryTaken, isUniqueViolation, toCategory, toQuestions } from "../bankSql.js";
 
 const SQLITE_CONSTRAINT_UNIQUE = 2067;
 // The last-ADMIN rule lives in the write itself (one atomic statement), so concurrent requests cannot both pass it.
@@ -102,5 +103,52 @@ export function createLibsqlDatabase({ url, authToken } = {}) {
     async deleteExpired(now) { await run("DELETE FROM sessions WHERE expires_at <= ?", [now]); },
     async deleteByUser(userId) { await run("DELETE FROM sessions WHERE user_id = ?", [userId]); },
   };
-  return { users, sessions, close: () => client.close() };
+  const writeBatch = async (stmts) => { await migrated(); return client.batch(stmts, "write"); };
+  const loadQuestions = async (rows) => {
+    if (!rows.length) return [];
+    return toQuestions(rows, (await run(BANK_SQL.answersOf(rows.length), rows.map((r) => r.id))).rows);
+  };
+
+  const categories = {
+    async list() { return (await run(BANK_SQL.listCategories)).rows.map(toCategory); },
+    async create({ name, createdAt }) {
+      try {
+        const { lastInsertRowid } = await run(BANK_SQL.insertCategory, [name, createdAt]);
+        return toCategory(await first(BANK_SQL.categoryById, [Number(lastInsertRowid)]));
+      } catch (e) {
+        if (isUniqueViolation(e)) throw categoryTaken();
+        throw e;
+      }
+    },
+    async delete(id) {
+      const [, del] = await writeBatch([{ sql: BANK_SQL.unlinkCategory, args: [id] }, { sql: BANK_SQL.deleteCategory, args: [id] }]);
+      return del.rowsAffected > 0;
+    },
+  };
+
+  const questions = {
+    async list({ profile } = {}) {
+      const { rows } = profile ? await run(BANK_SQL.questions + " WHERE q.profile = ?" + ORDER, [profile]) : await run(BANK_SQL.questions + ORDER);
+      return loadQuestions(rows);
+    },
+    // One write batch (atomic). Answers point at the question just inserted (the newest id inside this write
+    // transaction) and are skipped when the question insert changed nothing (missing category): changes() = 1.
+    async create({ text, categoryId = null, profile, answers, createdAt }) {
+      const [inserted] = await writeBatch([
+        { sql: BANK_SQL.insertQuestion, args: [text, categoryId, profile, createdAt] },
+        ...answers.map((a, i) => ({
+          sql: "INSERT INTO answers (question_id, text, points, position) SELECT (SELECT MAX(id) FROM questions), ?, ?, ? WHERE changes() = 1",
+          args: [a.text, a.points, i],
+        })),
+      ]);
+      if (!inserted.rowsAffected) throw categoryNotFound();
+      return (await loadQuestions((await run(BANK_SQL.questions + " WHERE q.id = ?", [Number(inserted.lastInsertRowid)])).rows))[0];
+    },
+    async delete(id) {
+      const [, del] = await writeBatch([{ sql: BANK_SQL.deleteAnswers, args: [id] }, { sql: BANK_SQL.deleteQuestion, args: [id] }]);
+      return del.rowsAffected > 0;
+    },
+  };
+
+  return { users, sessions, categories, questions, close: () => client.close() };
 }

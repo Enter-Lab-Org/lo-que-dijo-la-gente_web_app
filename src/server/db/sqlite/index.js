@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { DatabaseError } from "../errors.js";
 import { migrate } from "./migrations.js";
 import { DEFAULT_ROLE } from "../../../domain/roles.js";
+import { BANK_SQL, ORDER, categoryNotFound, categoryTaken, isUniqueViolation, toCategory, toQuestions } from "../bankSql.js";
 
 export const DEFAULT_SQLITE_URL = "data/ldlg.db";
 const SQLITE_CONSTRAINT_UNIQUE = 2067;
@@ -85,5 +86,52 @@ export function createSqliteDatabase({ url = DEFAULT_SQLITE_URL } = {}) {
     async deleteByUser(userId) { q.deleteUserSessions.run(userId); },
   };
 
-  return { users, sessions, close: () => db.close() };
+  const tx = (fn) => {
+    db.exec("BEGIN IMMEDIATE");
+    try { const out = fn(); db.exec("COMMIT"); return out; } catch (e) { db.exec("ROLLBACK"); throw e; }
+  };
+  const loadQuestions = (rows) => {
+    if (!rows.length) return [];
+    return toQuestions(rows, db.prepare(BANK_SQL.answersOf(rows.length)).all(...rows.map((r) => r.id)));
+  };
+
+  const categories = {
+    async list() { return db.prepare(BANK_SQL.listCategories).all().map(toCategory); },
+    async create({ name, createdAt }) {
+      try {
+        const { lastInsertRowid } = db.prepare(BANK_SQL.insertCategory).run(name, createdAt);
+        return toCategory(db.prepare(BANK_SQL.categoryById).get(lastInsertRowid));
+      } catch (e) {
+        if (isUniqueViolation(e)) throw categoryTaken();
+        throw e;
+      }
+    },
+    async delete(id) {
+      return tx(() => { db.prepare(BANK_SQL.unlinkCategory).run(id); return db.prepare(BANK_SQL.deleteCategory).run(id).changes > 0; });
+    },
+  };
+
+  const questions = {
+    async list({ profile } = {}) {
+      const rows = profile
+        ? db.prepare(BANK_SQL.questions + " WHERE q.profile = ?" + ORDER).all(profile)
+        : db.prepare(BANK_SQL.questions + ORDER).all();
+      return loadQuestions(rows);
+    },
+    async create({ text, categoryId = null, profile, answers, createdAt }) {
+      const id = tx(() => {
+        const { changes, lastInsertRowid } = db.prepare(BANK_SQL.insertQuestion).run(text, categoryId, profile, createdAt);
+        if (!changes) throw categoryNotFound();
+        const insert = db.prepare(BANK_SQL.insertAnswer);
+        answers.forEach((a, i) => insert.run(lastInsertRowid, a.text, a.points, i));
+        return lastInsertRowid;
+      });
+      return loadQuestions(db.prepare(BANK_SQL.questions + " WHERE q.id = ?").all(id))[0];
+    },
+    async delete(id) {
+      return tx(() => { db.prepare(BANK_SQL.deleteAnswers).run(id); return db.prepare(BANK_SQL.deleteQuestion).run(id).changes > 0; });
+    },
+  };
+
+  return { users, sessions, categories, questions, close: () => db.close() };
 }

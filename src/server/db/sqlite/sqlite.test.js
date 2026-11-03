@@ -64,3 +64,26 @@ describe("sqlite migration 3 (GUEST removed)", () => {
     db.close();
   });
 });
+
+describe("sqlite migration 4 (question bank)", () => {
+  let dir;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "ldlg-db-")); });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("adds the bank tables to a version 3 database, keeping its users and sessions", async () => {
+    const path = join(dir, "v3.db");
+    const v3 = new DatabaseSync(path);
+    MIGRATIONS.slice(0, 3).forEach((sql) => v3.exec(sql));
+    v3.exec("PRAGMA user_version = 3");
+    v3.prepare("INSERT INTO users (email, password_hash, role, created_at) VALUES (?, ?, ?, ?)").run("admin@example.com", "h", "ADMIN", 1);
+    v3.prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)").run("t", 1, 500, 1);
+    v3.close();
+    const db = createSqliteDatabase({ url: path });
+    expect(await db.users.findByEmail("admin@example.com")).toMatchObject({ role: "ADMIN" });
+    expect(await db.sessions.findByTokenHash("t")).not.toBeNull();
+    const cat = await db.categories.create({ name: "Picante", createdAt: 2 });
+    expect(await db.questions.create({ text: "q", categoryId: cat.id, profile: "ADULT", createdAt: 2, answers: [{ text: "a", points: 10 }] }))
+      .toMatchObject({ category: "Picante", answers: [{ text: "a", points: 10 }] });
+    db.close();
+  });
+});

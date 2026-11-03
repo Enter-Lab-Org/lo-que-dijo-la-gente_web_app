@@ -24,6 +24,30 @@ export const MIGRATIONS = [
      BEGIN SELECT RAISE(ABORT, 'invalid role'); END;
    CREATE TRIGGER users_role_update BEFORE UPDATE OF role ON users WHEN NEW.role NOT IN ('ADMIN', 'OPERADOR')
      BEGIN SELECT RAISE(ABORT, 'invalid role'); END;`,
+  // 4: question bank. A question belongs to an optional category and a question profile (src/domain/profiles.js);
+  // its answers keep their order and points (10 when not given). Adapters also delete/unlink related rows explicitly,
+  // because remote Turso may not enforce foreign keys.
+  `CREATE TABLE categories (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+     created_at INTEGER NOT NULL
+   );
+   CREATE TABLE questions (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     text TEXT NOT NULL,
+     category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+     profile TEXT NOT NULL CHECK (profile IN ('DEFAULT', 'ADULT')),
+     created_at INTEGER NOT NULL
+   );
+   CREATE INDEX questions_profile ON questions(profile);
+   CREATE TABLE answers (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+     text TEXT NOT NULL,
+     points INTEGER NOT NULL DEFAULT 10 CHECK (points >= 0),
+     position INTEGER NOT NULL
+   );
+   CREATE INDEX answers_question ON answers(question_id, position);`,
 ];
 
 export function migrate(db) {

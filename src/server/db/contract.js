@@ -116,5 +116,53 @@ export function describeRepositoryContract(name, createDb) {
       expect(await db.sessions.findByTokenHash("old")).toBeNull();
       expect(await db.sessions.findByTokenHash("new")).not.toBeNull();
     });
+
+    // Question bank: categories, questions and their answers (migration 4).
+    it("creates, lists (by name) and deletes categories; a duplicate name (any case) is CATEGORY_TAKEN", async () => {
+      const b = await db.categories.create({ name: "Picante", createdAt: 2 });
+      const a = await db.categories.create({ name: "Antro y fiesta", createdAt: 3 });
+      expect(b).toEqual({ id: expect.anything(), name: "Picante", createdAt: 2 });
+      expect((await db.categories.list()).map((c) => c.name)).toEqual(["Antro y fiesta", "Picante"]);
+      await expect(db.categories.create({ name: "PICANTE", createdAt: 4 })).rejects.toMatchObject({ code: "CATEGORY_TAKEN" });
+      expect(await db.categories.delete(a.id)).toBe(true);
+      expect(await db.categories.delete(a.id)).toBe(false);
+      expect((await db.categories.list()).map((c) => c.name)).toEqual(["Picante"]);
+    });
+
+    it("stores a question with its category, profile and ordered answers, and lists it by profile", async () => {
+      const cat = await db.categories.create({ name: "Cultura drag", createdAt: 1 });
+      const q = await db.questions.create({
+        text: "Algo que nunca falta en la bolsa de una drag", categoryId: cat.id, profile: "ADULT", createdAt: 5,
+        answers: [{ text: "Labial", points: 34 }, { text: "Pestañas", points: 21 }, { text: "Abanico", points: 9 }],
+      });
+      expect(q).toEqual({
+        id: expect.anything(), text: "Algo que nunca falta en la bolsa de una drag", categoryId: cat.id, category: "Cultura drag",
+        profile: "ADULT", createdAt: 5,
+        answers: [{ text: "Labial", points: 34 }, { text: "Pestañas", points: 21 }, { text: "Abanico", points: 9 }],
+      });
+      const plain = await db.questions.create({ text: "Algo de la playa", categoryId: null, profile: "DEFAULT", createdAt: 6, answers: [{ text: "Arena", points: 10 }] });
+      expect(plain).toMatchObject({ categoryId: null, category: "", profile: "DEFAULT" });
+      expect(await db.questions.list()).toEqual([q, plain].sort((x, y) => x.text.localeCompare(y.text)));
+      expect(await db.questions.list({ profile: "ADULT" })).toEqual([q]);
+      expect(await db.questions.list({ profile: "DEFAULT" })).toEqual([plain]);
+    });
+
+    it("refuses a question with a missing category (CATEGORY_NOT_FOUND) or an unknown profile, storing nothing", async () => {
+      await expect(db.questions.create({ text: "x", categoryId: 999999, profile: "DEFAULT", createdAt: 1, answers: [{ text: "a", points: 1 }] }))
+        .rejects.toMatchObject({ code: "CATEGORY_NOT_FOUND" });
+      await expect(db.questions.create({ text: "y", categoryId: null, profile: "KIDS", createdAt: 1, answers: [{ text: "a", points: 1 }] })).rejects.toThrow();
+      expect(await db.questions.list()).toEqual([]);
+    });
+
+    it("deletes a question with its answers, and a category leaves its questions without category", async () => {
+      const cat = await db.categories.create({ name: "Ligue y apps", createdAt: 1 });
+      const q = await db.questions.create({ text: "Señal de que tu cita va mal", categoryId: cat.id, profile: "ADULT", createdAt: 1, answers: [{ text: "Llega tarde", points: 10 }] });
+      const other = await db.questions.create({ text: "Otra", categoryId: null, profile: "DEFAULT", createdAt: 1, answers: [{ text: "b", points: 3 }] });
+      expect(await db.categories.delete(cat.id)).toBe(true);
+      expect((await db.questions.list({ profile: "ADULT" }))[0]).toMatchObject({ id: q.id, categoryId: null, category: "" });
+      expect(await db.questions.delete(q.id)).toBe(true);
+      expect(await db.questions.delete(q.id)).toBe(false);
+      expect(await db.questions.list()).toEqual([other]);
+    });
   });
 }
