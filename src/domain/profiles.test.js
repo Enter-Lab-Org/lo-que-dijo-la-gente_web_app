@@ -18,11 +18,10 @@ describe("game profiles", () => {
     expect(getProfile("nope").id).toBe("default");
   });
 
-  it("normalizes the stored config: known active profile, positive unique ids per profile", () => {
-    expect(normalizeProfileConfig(null)).toEqual({ active: "default", selected: { default: [], tacones: [] } });
-    expect(normalizeProfileConfig({ active: "x", selected: { tacones: [3, "3", -1, 2.5, "a", 4], other: [1] } }))
-      .toEqual({ active: "default", selected: { default: [], tacones: [3, 4] } });
-    expect(normalizeProfileConfig({ active: "tacones" }).active).toBe("tacones");
+  it("normalizes the stored config to a known active profile (the picks live in the database)", () => {
+    expect(normalizeProfileConfig(null)).toEqual({ active: "default" });
+    expect(normalizeProfileConfig({ active: "x", selected: { tacones: [3] } })).toEqual({ active: "default" });
+    expect(normalizeProfileConfig({ active: "tacones" })).toEqual({ active: "tacones" });
   });
 
   it("picks only selected questions of the profile's question profile, and maps them to local bank items", () => {

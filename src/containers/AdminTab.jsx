@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MAX_ANSWERS } from "../domain/constants";
-import { PROFILE_LIST, QUESTION_PROFILES, getProfile } from "../domain/profiles";
+import { PROFILE_LIST, QUESTION_PROFILES, getProfile, savedPicks } from "../domain/profiles";
 import { plural } from "../domain/utils";
 import ProfilePanel from "../components/admin/ProfilePanel";
 import BankQuestionForm from "../components/admin/BankQuestionForm";
@@ -26,13 +26,15 @@ export default function AdminTab({ api, usersApi, canManageUsers, currentUserId,
   const [catName, setCatName] = useState("");
   const { config, apply } = profileStore;
   const [chosenId, setChosenId] = useState(config.active);
-  const [selected, setSelected] = useState(() => new Set(config.selected[config.active]));
+  const chosenRef = useRef(config.active); // the chosen profile when the questions arrive
+  const [selected, setSelected] = useState(() => new Set());
   const [confirm, setConfirm] = useState(false);
+  const [pendingId, setPendingId] = useState(null); // profile to switch to once unapplied changes are discarded
 
   useEffect(() => {
     let alive = true;
     Promise.all([api.listQuestions(), api.listCategories()]).then(([qs, cs]) => {
-      if (alive) { setQuestions(qs); setCategories(cs); }
+      if (alive) { setQuestions(qs); setCategories(cs); setSelected(new Set(savedPicks(qs, chosenRef.current))); }
     }, (e) => { if (alive) setNotice({ ok: false, text: e.message }); });
     return () => { alive = false; };
   }, [api]);
@@ -78,14 +80,26 @@ export default function AdminTab({ api, usersApi, canManageUsers, currentUserId,
   const chosen = getProfile(chosenId);
   const profileQuestions = questions.filter((q) => q.profile === chosen.questionProfile);
   const picked = profileQuestions.filter((q) => selected.has(q.id));
-  const choose = (id) => { setChosenId(id); setSelected(new Set(config.selected[id] ?? [])); };
+  const saved = savedPicks(questions, chosenId);
+  const dirty = saved.length !== picked.length || picked.some((q) => !saved.includes(q.id));
+  // Choosing a profile preloads the picks saved in the database for it (the same for every operator);
+  // with unapplied changes it asks first, because they would be lost.
+  const switchTo = (id) => { setPendingId(null); chosenRef.current = id; setChosenId(id); setSelected(new Set(savedPicks(questions, id))); };
+  const choose = (id) => { if (id === chosenId) return; if (dirty) setPendingId(id); else switchTo(id); };
   const toggle = (id) => { setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }); };
   const all = (on) => { setSelected(new Set(on ? profileQuestions.map((q) => q.id) : [])); };
   const askApply = () => setConfirm(true);
+  // The picks are saved first; if that fails, the profile and the game bank stay as they were.
   const doApply = () => {
     setConfirm(false);
-    const n = apply(chosen.id, questions, picked.map((q) => q.id));
-    setNotice({ ok: true, text: `Perfil ${chosen.name} activo: ${n} ${plural(n, "pregunta")} en el banco del juego.` });
+    const qp = chosen.questionProfile;
+    const ids = picked.map((q) => q.id);
+    return run(() => api.savePicks(qp, ids), () => {
+      const saved = questions.map((q) => (q.profile === qp ? { ...q, picked: ids.includes(q.id) } : q));
+      setQuestions(saved);
+      const n = apply(chosen.id, saved, ids);
+      return `Perfil ${chosen.name} activo: ${n} ${plural(n, "pregunta")} en el banco del juego.`;
+    });
   };
 
   return (
@@ -98,7 +112,7 @@ export default function AdminTab({ api, usersApi, canManageUsers, currentUserId,
       {notice && part !== "usuarios" && <p className={"hint" + (notice.ok ? "" : " err")} role="status">{notice.text}</p>}
 
       {part === "perfil" && (
-        <ProfilePanel profiles={PROFILE_LIST} chosen={chosen} activeId={config.active} questions={profileQuestions} selected={selected}
+        <ProfilePanel profiles={PROFILE_LIST} chosen={chosen} activeId={config.active} questions={profileQuestions} selected={selected} dirty={dirty}
           onChoose={choose} onToggle={toggle} onAll={all} onApply={askApply} />
       )}
       {part === "preguntas" && (
@@ -116,6 +130,11 @@ export default function AdminTab({ api, usersApi, canManageUsers, currentUserId,
       )}
       {part === "usuarios" && canManageUsers && usersApi && <UsersTab api={usersApi} currentUserId={currentUserId} />}
 
+      {pendingId && (
+        <ConfirmDialog title={`¿Descartar los cambios sin aplicar de ${chosen.name}?`} onYes={() => switchTo(pendingId)} onNo={() => setPendingId(null)}>
+          Las preguntas marcadas o desmarcadas que no aplicaste se perderán.
+        </ConfirmDialog>
+      )}
       {confirm && (
         <ConfirmDialog title={`¿Deseas usar el perfil ${chosen.name}?`} onYes={doApply} onNo={() => setConfirm(false)}>
           {picked.length === 0 ? "No se cargarán preguntas: el banco del juego quedará vacío."

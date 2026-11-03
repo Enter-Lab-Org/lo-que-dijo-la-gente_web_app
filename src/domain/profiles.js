@@ -56,12 +56,10 @@ export const PROFILE_LIST = Object.freeze(Object.values(PROFILES));
 export const getProfile = (id) => PROFILES[id] ?? PROFILES[DEFAULT_PROFILE];
 export const profileVars = (id) => ({ ...(getProfile(id).palette ?? {}) });
 
-/* Browser-side profile config ("ldlg-profile"): the active profile and the database question ids picked per profile. */
+/* Browser-side profile config ("ldlg-profile"): the active profile. The picked questions live in the database. */
 export function normalizeProfileConfig(raw) {
   const r = raw && typeof raw === "object" ? raw : {};
-  const ids = (v) => (Array.isArray(v) ? [...new Set(v.map(Number).filter((n) => Number.isInteger(n) && n > 0))] : []);
-  const selected = Object.fromEntries(PROFILE_LIST.map((p) => [p.id, ids(r.selected?.[p.id])]));
-  return { active: PROFILES[r.active] ? r.active : DEFAULT_PROFILE, selected };
+  return { active: PROFILES[r.active] ? r.active : DEFAULT_PROFILE };
 }
 
 // A database question (see src/server/bank) as an item of the local game bank (src/domain/bank.js).
@@ -69,6 +67,12 @@ export const toBankItem = (q, now = Date.now()) => ({
   id: "db-" + q.id, q: q.text, cat: q.category || "", updatedAt: now,
   answers: q.answers.map((a) => ({ text: a.text, pts: a.points })),
 });
+
+// The ids saved as picked (in the database) for a game profile's question profile.
+export const savedPicks = (questions, profileId) => {
+  const qp = getProfile(profileId).questionProfile;
+  return questions.filter((q) => q.profile === qp && q.picked).map((q) => q.id);
+};
 
 // The questions to load when a profile is applied: the picked ones of its question profile, in bank order.
 export const pickedQuestions = (questions, profileId, selectedIds) => {

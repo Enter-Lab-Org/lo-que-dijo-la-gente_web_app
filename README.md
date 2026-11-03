@@ -75,14 +75,18 @@ The **Administración** tab has four parts: **Perfil del juego**, **Preguntas**,
 - **Question bank in the database** (migration 4): `categories` (unique name), `questions` (text, optional category,
   profile `DEFAULT` or `ADULT` = +18) and `answers` (question id, text, points, order). Answers without points get 10.
   Deleting a category leaves its questions without category. The database is the only source of the bank.
+  Migration 5 adds `questions.picked`: the questions picked for their profile, shared by every operator.
 - **Game profiles** live in `src/domain/profiles.js`: `default` (the usual look, `DEFAULT` questions) and `tacones`
   ("100 Tacones Dijeron", `ADULT` questions, palette from `100-tacones-dijeron-presentacion.pdf`). To rename a profile
   or change its colors, edit only `name`, `theme` and `palette` there; `id` and `questionProfile` are stored keys.
-- Choosing a profile lists its questions with checkboxes. **Usar este perfil** asks for confirmation in the page; on
-  **Sí** the picked questions replace the local game bank (`ldlg-banco`), the profile's title and colors go into the
-  design (and to the public screen), and the choice is saved in `ldlg-profile`. The game keeps reading the local bank.
-  The current playlist (Juego) is not changed. Every switch clears the picks of the other profiles (no +18 question
-  carries into default), and applying with no picks leaves the game bank empty. The database bank is never changed by a switch.
+- Choosing a profile lists its questions with checkboxes, preloaded with the picks saved in the database for that
+  profile (whoever saved them). **Usar este perfil** asks for confirmation in the page; on **Sí** the picks are saved in
+  the database, then the picked questions replace the local game bank (`ldlg-banco`), the profile's title and colors go
+  into the design (and to the public screen), and the active profile is saved in `ldlg-profile`. If the picks cannot be
+  saved, nothing changes. The game keeps reading the local bank. The current playlist (Juego) is not changed. The game
+  bank only holds the applied profile's picks (no +18 question carries into default), and applying with no picks leaves
+  it empty. Unapplied checkbox changes are not saved: the panel warns while there are any, and choosing
+  another profile asks before discarding them. The panel reads the picks when it opens; the last save wins. A switch never adds or deletes database questions.
 
 | Route | Does |
 | --- | --- |
@@ -92,6 +96,7 @@ The **Administración** tab has four parts: **Perfil del juego**, **Preguntas**,
 | `GET /api/bank/categories` | List categories by name |
 | `POST /api/bank/categories` | Create `{ name }` → 201; 400 invalid, 409 name taken |
 | `DELETE /api/bank/categories/:id` | Delete a category |
+| `PUT /api/bank/picks` | Save `{ profile, ids }` as that profile's picked questions (others of it unpicked) → 200; 400 invalid |
 
 Every call needs a live session whose role can access `admin` (401 / 403); changes also need a same-origin request (403).
 
@@ -177,4 +182,4 @@ When `window.ldlg.native` is true (see `../lo-que-dijo-la-gente/preload.js`) the
 ## Storage keys
 
 `ldlg-v2` (game), `ldlg-pub` (public state), `ldlg-theme-v2` (design, includes the active `profile`), `ldlg-banco` (bank),
-`ldlg-tab`, `ldlg-seeded`, `ldlg-profile` (active game profile and picked database question ids).
+`ldlg-tab`, `ldlg-seeded`, `ldlg-profile` (active game profile; its picked questions live in the database).

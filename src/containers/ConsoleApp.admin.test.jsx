@@ -7,14 +7,14 @@ import { fakeServices, storageWithGame, question } from "../test/fixtures";
 // In-memory stand-in for the /api/bank adapter: same shape, default 10 points, rejects with the server message.
 function fakeBankApi({ categories = [], questions = [] } = {}) {
   let cats = categories.map((c) => ({ createdAt: 1, ...c }));
-  let qs = questions.map((q) => ({ categoryId: null, category: "", createdAt: 1, ...q }));
+  let qs = questions.map((q) => ({ categoryId: null, category: "", createdAt: 1, picked: false, ...q }));
   let next = 100;
   return {
     listQuestions: vi.fn(async (profile) => qs.filter((q) => !profile || q.profile === profile).map((q) => ({ ...q }))),
     createQuestion: vi.fn(async ({ text, categoryId, profile, answers }) => {
       if (!text.trim()) throw new Error("Escribe la pregunta.");
       const cat = cats.find((c) => c.id === categoryId);
-      const q = { id: next++, text: text.trim(), categoryId: cat ? cat.id : null, category: cat ? cat.name : "", profile, createdAt: 2,
+      const q = { id: next++, text: text.trim(), categoryId: cat ? cat.id : null, category: cat ? cat.name : "", profile, createdAt: 2, picked: false,
         answers: answers.filter((a) => a.text.trim()).map((a) => ({ text: a.text.trim(), points: a.points === "" ? 10 : Number(a.points) })) };
       qs.push(q);
       return { ...q };
@@ -28,6 +28,7 @@ function fakeBankApi({ categories = [], questions = [] } = {}) {
       return { ...c };
     }),
     removeCategory: vi.fn(async (id) => { cats = cats.filter((c) => c.id !== id); }),
+    savePicks: vi.fn(async (profile, ids) => { qs = qs.map((q) => (q.profile === profile ? { ...q, picked: ids.includes(q.id) } : q)); }),
   };
 }
 
@@ -166,7 +167,7 @@ describe("Console · game profile", () => {
     const theme = services.storage.data.get("ldlg-theme-v2");
     expect(theme).toMatchObject({ profile: "tacones", title: "100 Tacones Dijeron", gold: "#FFC727", rosa: "#FF4FA3", turq: "#1EC8B8" });
     expect(services.bus.posted.at(-1)).toMatchObject({ kind: "theme", theme: { profile: "tacones" } });
-    expect(services.storage.data.get("ldlg-profile")).toEqual({ active: "tacones", selected: { default: [], tacones: [1] } });
+    expect(services.storage.data.get("ldlg-profile")).toEqual({ active: "tacones" });
     expect(document.documentElement.dataset.profile).toBe("tacones");
     expect(document.documentElement.style.getPropertyValue("--bg")).toBe("#24093F");
     expect(screen.getByText("Perfil activo: 100 Tacones Dijeron")).toBeInTheDocument();
@@ -188,7 +189,7 @@ describe("Console · game profile", () => {
     await u.click(within(dialog).getByRole("button", { name: "Sí" }));
     expect(services.storage.data.get("ldlg-banco")).toEqual([]);
     expect(services.storage.data.get("ldlg-theme-v2")).toMatchObject({ profile: "tacones", title: "100 Tacones Dijeron" });
-    expect(services.storage.data.get("ldlg-profile")).toMatchObject({ active: "tacones", selected: { tacones: [] } });
+    expect(services.storage.data.get("ldlg-profile")).toEqual({ active: "tacones" });
     expect(document.documentElement.dataset.profile).toBe("tacones");
 
     await u.click(screen.getByRole("radio", { name: /Lo que dijo la gente/ }));
@@ -201,16 +202,17 @@ describe("Console · game profile", () => {
     expect(document.documentElement.dataset.profile).toBe("default");
   });
 
-  it("clears the picked questions on every profile change, so +18 picks never carry into default; the database bank stays", async () => {
+  it("saves each profile's picks in the database and preloads them when the profile is chosen; the game bank only gets the applied one", async () => {
     const u = userEvent.setup();
     const { services, bankApi } = renderAs(OP);
-    const checked = (picker) => within(picker).getAllByRole("checkbox").filter((c) => c.checked);
+    const checked = (picker) => within(picker).getAllByRole("checkbox").filter((c) => c.checked).map((c) => c.closest("label").textContent);
     await openAdmin(u, "Perfil del juego");
     await u.click(screen.getByRole("radio", { name: /100 Tacones Dijeron/ }));
     let picker = await screen.findByRole("group", { name: "Preguntas del perfil" });
     await u.click(within(picker).getByRole("checkbox", { name: /Algo que nunca falta/ }));
     await u.click(screen.getByRole("button", { name: "Usar este perfil" }));
     await u.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí" }));
+    expect(bankApi.savePicks).toHaveBeenLastCalledWith("ADULT", [1]);
 
     await u.click(screen.getByRole("radio", { name: /Lo que dijo la gente/ }));
     picker = await screen.findByRole("group", { name: "Preguntas del perfil" });
@@ -218,16 +220,85 @@ describe("Console · game profile", () => {
     await u.click(within(picker).getByRole("checkbox", { name: /Algo que llevas a la playa/ }));
     await u.click(screen.getByRole("button", { name: "Usar este perfil" }));
     await u.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí" }));
+    expect(bankApi.savePicks).toHaveBeenLastCalledWith("DEFAULT", [3]);
+    // No +18 question carries into the default game bank.
     expect(services.storage.data.get("ldlg-banco").map((q) => q.id)).toEqual(["db-3"]);
-    expect(services.storage.data.get("ldlg-profile")).toEqual({ active: "default", selected: { default: [3], tacones: [] } });
 
+    // Back to 100 Tacones: its saved pick is preloaded.
     await u.click(screen.getByRole("radio", { name: /100 Tacones Dijeron/ }));
     picker = await screen.findByRole("group", { name: "Preguntas del perfil" });
-    expect(checked(picker)).toEqual([]);
+    expect(checked(picker)).toEqual([expect.stringMatching(/Algo que nunca falta/)]);
 
-    // Switching profiles only touches the local game bank: the database keeps every question.
+    // Saving picks never deletes questions from the database.
     expect(bankApi.removeQuestion).not.toHaveBeenCalled();
     await u.click(screen.getByRole("button", { name: "Preguntas" }));
     for (const text of [/Algo que nunca falta/, /Señal de que tu cita/, /Algo que llevas a la playa/]) expect(panel().getByText(text)).toBeInTheDocument();
+  });
+
+  it("preloads the database picks of the active profile for any operator, on a fresh console", async () => {
+    const u = userEvent.setup();
+    const bankApi = fakeBankApi({ questions: [{ ...ADULT[0], picked: true }, ADULT[1], { ...DEFAULT_Q, picked: true }] });
+    renderAs(OP, bankApi);
+    await openAdmin(u, "Perfil del juego");
+    const picker = await screen.findByRole("group", { name: "Preguntas del perfil" });
+    await within(picker).findByRole("checkbox", { name: /Algo que llevas a la playa/, checked: true });
+    await u.click(screen.getByRole("radio", { name: /100 Tacones Dijeron/ }));
+    expect(within(screen.getByRole("group", { name: "Preguntas del perfil" })).getByRole("checkbox", { name: /Algo que nunca falta/ })).toBeChecked();
+    expect(within(screen.getByRole("group", { name: "Preguntas del perfil" })).getByRole("checkbox", { name: /Señal de que tu cita/ })).not.toBeChecked();
+  });
+
+  it("keeps the current profile and game bank when the picks cannot be saved", async () => {
+    const u = userEvent.setup();
+    const bankApi = fakeBankApi({ questions: [...ADULT, DEFAULT_Q] });
+    bankApi.savePicks.mockRejectedValueOnce(new Error("Inicia sesión de nuevo."));
+    const { services } = renderAs(OP, bankApi);
+    await openAdmin(u, "Perfil del juego");
+    await u.click(screen.getByRole("radio", { name: /100 Tacones Dijeron/ }));
+    const picker = await screen.findByRole("group", { name: "Preguntas del perfil" });
+    await u.click(within(picker).getByRole("checkbox", { name: /Algo que nunca falta/ }));
+    await u.click(screen.getByRole("button", { name: "Usar este perfil" }));
+    await u.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí" }));
+    expect(await screen.findByText("Inicia sesión de nuevo.")).toBeInTheDocument();
+    expect(services.storage.data.get("ldlg-banco").map((q) => q.id)).toEqual(["local"]);
+    expect(services.storage.data.get("ldlg-profile")).toBeUndefined();
+    expect(document.documentElement.dataset.profile).not.toBe("tacones");
+  });
+
+  it("warns about unapplied checkbox changes, and asks before a profile change discards them", async () => {
+    const u = userEvent.setup();
+    const WARN = "Hay cambios sin aplicar: usa «Usar este perfil» para guardarlos.";
+    const bankApi = fakeBankApi({ questions: [{ ...ADULT[0], picked: true }, ADULT[1], DEFAULT_Q] });
+    renderAs(OP, bankApi);
+    await openAdmin(u, "Perfil del juego");
+    await u.click(screen.getByRole("radio", { name: /100 Tacones Dijeron/ }));
+    const picker = () => screen.getByRole("group", { name: "Preguntas del perfil" });
+    expect(screen.queryByText(WARN)).toBeNull();
+
+    // Toggling back to the saved picks clears the warning.
+    await u.click(within(picker()).getByRole("checkbox", { name: /Señal de que tu cita/ }));
+    expect(screen.getByText(WARN)).toBeInTheDocument();
+    await u.click(within(picker()).getByRole("checkbox", { name: /Señal de que tu cita/ }));
+    expect(screen.queryByText(WARN)).toBeNull();
+
+    // No keeps the profile and the changes; Sí discards them and switches.
+    await u.click(within(picker()).getByRole("checkbox", { name: /Señal de que tu cita/ }));
+    await u.click(screen.getByRole("radio", { name: /Lo que dijo la gente/ }));
+    let dialog = screen.getByRole("alertdialog");
+    expect(dialog).toHaveTextContent("¿Descartar los cambios sin aplicar de 100 Tacones Dijeron?");
+    expect(dialog).toHaveTextContent("Las preguntas marcadas o desmarcadas que no aplicaste se perderán.");
+    await u.click(within(dialog).getByRole("button", { name: "No" }));
+    expect(screen.getByRole("radio", { name: /100 Tacones Dijeron/ })).toBeChecked();
+    expect(within(picker()).getByRole("checkbox", { name: /Señal de que tu cita/ })).toBeChecked();
+
+    await u.click(screen.getByRole("radio", { name: /Lo que dijo la gente/ }));
+    dialog = screen.getByRole("alertdialog");
+    await u.click(within(dialog).getByRole("button", { name: "Sí" }));
+    expect(screen.getByRole("radio", { name: /Lo que dijo la gente/ })).toBeChecked();
+    expect(screen.queryByText(WARN)).toBeNull();
+    await u.click(screen.getByRole("radio", { name: /100 Tacones Dijeron/ }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(within(picker()).getByRole("checkbox", { name: /Señal de que tu cita/ })).not.toBeChecked();
+    expect(within(picker()).getByRole("checkbox", { name: /Algo que nunca falta/ })).toBeChecked();
+    expect(bankApi.savePicks).not.toHaveBeenCalled();
   });
 });
