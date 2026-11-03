@@ -364,3 +364,94 @@ input[type="email"], input[type="password"] {
 .users th { text-align: left; font: 600 .78rem/1.2 var(--body); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); padding: 8px; }
 .users td { padding: 8px; border-top: 1px solid rgba(255, 255, 255, .08); vertical-align: middle; }
 .users td .row { gap: 8px; flex-wrap: nowrap; }
+
+/* Administración panel (ADMIN and OPERADOR) */
+.admin-tab { display: grid; gap: 16px; }
+.admin-tab > .hint.err, .admin-tab .card .hint.err { color: var(--x); }
+.a-nav { justify-self: start; flex-wrap: wrap; }
+.a-grid { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(0, 1.4fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .a-grid { grid-template-columns: 1fr; } }
+.a-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.a-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--tile-deep); box-shadow: inset 0 0 0 1px var(--line); }
+.a-item.b-item { display: grid; }
+.a-name { font: 600 1rem/1.2 var(--body); text-transform: uppercase; letter-spacing: .04em; }
+.a-answers { display: grid; gap: 6px; }
+.a-answer { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 6px; }
+.chip.adult { background: color-mix(in srgb, var(--rosa) 22%, var(--panel-2)); color: var(--rosa); }
+.a-profiles { margin: 0; border: 0; }
+.a-legend { font: 700 1.1rem/1.2 var(--body); text-transform: uppercase; letter-spacing: .08em; padding: 0; margin-bottom: 4px; float: left; width: 100%; }
+.a-profile { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: start; padding: 12px 14px; border-radius: 12px; background: var(--tile-deep); box-shadow: inset 0 0 0 2px var(--line); cursor: pointer; }
+.a-profile.on { box-shadow: inset 0 0 0 2px var(--gold); }
+.a-profile input { margin-top: 4px; accent-color: var(--gold); }
+.a-profile-txt { display: grid; gap: 2px; }
+.a-profile-txt strong { font: 700 1.05rem/1.2 var(--body); text-transform: uppercase; letter-spacing: .05em; }
+.a-profile-txt span { color: var(--muted); font-size: .92rem; }
+.a-swatches { grid-column: 2; display: flex; gap: 4px; }
+.a-swatches i { width: 18px; height: 18px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+.a-picker { margin: 0; padding: 0; border: 0; display: grid; gap: 6px; max-height: 50vh; overflow-y: auto; }
+.a-check { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: var(--tile-deep); cursor: pointer; }
+.a-check input { margin-top: 3px; accent-color: var(--gold); }
+.a-check em { color: var(--muted); font-style: normal; }
+.a-dialog-back { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,.6); }
+.a-dialog { max-width: 460px; width: 100%; box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 0 0 2px var(--gold); }
+
+/* ---------- Perfil "100 Tacones Dijeron" (src/domain/profiles.js) ----------
+   Marquesina: escenario morado con rayos, marco rojo con focos amarillos, fichas moradas y respuestas crema.
+   Colors come from the profile palette (CSS custom properties); these rules only shape the look. */
+.heel { width: 1em; height: 1em; display: block; }
+.s-qbox { position: relative; display: grid; justify-items: center; }
+html[data-profile="tacones"] body {
+  background: repeating-conic-gradient(from 0deg at 50% 40%, var(--glow) 0 6deg, var(--bg) 6deg 12deg);
+}
+.scrwrap[data-profile="tacones"] { background: var(--marquee); }
+.scrwrap[data-profile="tacones"] .scr {
+  position: relative;
+  border: calc(var(--u) * 1.6) solid var(--marquee);
+  outline: calc(var(--u) * .35) solid var(--bulb); outline-offset: calc(var(--u) * -1.95);
+  background:
+    linear-gradient(var(--page-shade), var(--page-shade)),
+    var(--page-img) center / cover no-repeat,
+    repeating-conic-gradient(from 0deg at 50% 45%, color-mix(in srgb, var(--tile-hi) 55%, var(--glow)) 0 6deg, var(--glow) 6deg 12deg);
+}
+/* Bulbs on the red frame. */
+.scrwrap[data-profile="tacones"] .scr::before {
+  content: ""; position: absolute; inset: calc(var(--u) * -1.6); pointer-events: none; z-index: 0;
+  padding: calc(var(--u) * 1.6);
+  background: radial-gradient(circle, var(--bulb) 0 28%, color-mix(in srgb, var(--bulb) 40%, transparent) 34%, transparent 42%) 0 0 / calc(var(--u) * 3) calc(var(--u) * 3);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+}
+@media (prefers-reduced-motion: no-preference) { .scrwrap[data-profile="tacones"] .scr::before { animation: twinkle 1.2s steps(2) infinite; } }
+.scrwrap[data-profile="tacones"] .scr > * { position: relative; z-index: 1; }
+.scrwrap[data-profile="tacones"] .s-stage { background: linear-gradient(var(--stage-shade), var(--stage-shade)), var(--stage-img) center / cover no-repeat, color-mix(in srgb, var(--bg) 55%, transparent); box-shadow: none; }
+.scrwrap[data-profile="tacones"] .s-stage::before { display: none; }
+.scrwrap[data-profile="tacones"] .s-team { background: var(--tile-deep); border-color: var(--team); }
+.scrwrap[data-profile="tacones"] .s-brand { color: var(--bulb); font-size: max(15px, calc(var(--u) * 1.9)); text-shadow: 0 3px 0 var(--marquee); }
+.scrwrap[data-profile="tacones"] .s-potnum { border-color: var(--bulb); background: var(--tile-deep); }
+.scrwrap[data-profile="tacones"] .s-qbox {
+  margin-top: calc(var(--u) * 1.2); padding: calc(var(--u) * 1.6) calc(var(--u) * 2.4) calc(var(--u) * 1.2);
+  border: max(3px, calc(var(--u) * .35)) solid var(--bulb); border-radius: calc(var(--u) * 1.4); background: var(--tile-deep);
+}
+.s-qtag {
+  position: absolute; top: 0; left: calc(var(--u) * 2.4); transform: translateY(-55%);
+  font: 700 max(11px, calc(var(--u) * 1))/1 var(--body); text-transform: uppercase; letter-spacing: .14em;
+  color: var(--tile-deep); background: var(--rosa); border: 2px solid var(--tile-deep); border-radius: 999px; padding: calc(var(--u) * .45) calc(var(--u) * 1.2);
+}
+.scrwrap[data-profile="tacones"] .s-q { text-transform: none; font-family: var(--text); font-weight: 600; text-shadow: none; }
+.scrwrap[data-profile="tacones"] .s-front { background: var(--tile); border: 2px dotted color-mix(in srgb, var(--bulb) 70%, transparent); box-shadow: 0 calc(var(--u) * .4) 0 var(--tile-deep); }
+.scrwrap[data-profile="tacones"] .s-num { background: var(--bulb); color: var(--tile-deep); border-color: var(--tile-deep); }
+.scrwrap[data-profile="tacones"] .s-back { background: var(--paper); border: 2px solid var(--tile-deep); box-shadow: 0 calc(var(--u) * .4) 0 var(--tile-deep); }
+.scrwrap[data-profile="tacones"] .s-ans { color: var(--paper-ink); font-family: var(--text); font-weight: 700; }
+.scrwrap[data-profile="tacones"] .s-pts { background: var(--x); color: #fff; margin: calc(var(--u) * .5); border-radius: calc(var(--u) * .5); }
+.scrwrap[data-profile="tacones"] .s-blank { background: color-mix(in srgb, var(--tile) 55%, transparent); border-style: dotted; }
+.scrwrap[data-profile="tacones"] .s-strikes { background: color-mix(in srgb, var(--tile-deep) 70%, transparent); padding: calc(var(--u) * .4); border-radius: calc(var(--u) * .8); }
+.scrwrap[data-profile="tacones"] .s-strike { border-color: transparent; background: transparent; color: color-mix(in srgb, var(--x) 35%, var(--tile-deep)); }
+.scrwrap[data-profile="tacones"] .s-strike.on { color: var(--x); background: transparent; }
+.scrwrap[data-profile="tacones"] .s-strike .heel { width: 80%; height: 80%; }
+.scrwrap[data-profile="tacones"] .s-bigx span { color: var(--x); }
+.scrwrap[data-profile="tacones"] .s-bigx .heel { width: calc(var(--u) * 20); height: calc(var(--u) * 20); filter: drop-shadow(0 0 30px color-mix(in srgb, var(--x) 70%, transparent)); }
+/* Console chrome while the profile is active: same palette, festive accents. */
+html[data-profile="tacones"] .c-logo { color: var(--bulb); text-shadow: 0 2px 0 var(--marquee); }
+html[data-profile="tacones"] .tab[aria-selected="true"] { background: var(--x); color: #fff; }
+html[data-profile="tacones"] .seg button[aria-pressed="true"] { background: var(--rosa); color: var(--tile-deep); }

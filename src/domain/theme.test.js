@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeTheme, resetTheme, themeFromBackup, setTitle, screenVars } from "./theme";
+import { normalizeTheme, resetTheme, themeFromBackup, setTitle, screenVars, applyProfileTheme } from "./theme";
 import { THEME0 } from "./constants";
 
 describe("theme", () => {
@@ -28,5 +28,17 @@ describe("theme", () => {
     expect(v["--page-shade"]).toBe("rgba(11,24,48,0.4)");
     expect(v["--stage-shade"]).toBe("rgba(11,24,48,0.4)");
     expect(v["--tile-img"]).toBe('url("data:t")');
+  });
+
+  it("applies a game profile's title and colors, keeping images; reset goes back to the active profile's look", () => {
+    const t = applyProfileTheme({ ...THEME0, rev: 4, page: "data:p", title: "Cliente" }, "tacones");
+    expect(t).toEqual({ ...THEME0, rev: 4, page: "data:p", profile: "tacones", title: "100 Tacones Dijeron", gold: "#FFC727", rosa: "#FF4FA3", turq: "#1EC8B8" });
+    expect(resetTheme(t)).toEqual({ ...THEME0, rev: 4, profile: "tacones", title: "100 Tacones Dijeron", gold: "#FFC727", rosa: "#FF4FA3", turq: "#1EC8B8" });
+    expect(applyProfileTheme(t, "default")).toMatchObject({ profile: "default", title: "Lo que dijo la gente", gold: "#f5a518" });
+  });
+
+  it("adds the profile palette to the screen vars", () => {
+    expect(screenVars({ profile: "tacones" })).toMatchObject({ "--bg": "#24093F", "--gold": "#f5a518" });
+    expect(screenVars({ profile: "tacones" })["--marquee"]).toBe("#E8243C");
   });
 });

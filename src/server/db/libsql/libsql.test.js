@@ -84,7 +84,7 @@ describe("libsql concurrent startup", () => {
     expect(results.map((r) => r.status)).toEqual(["fulfilled", "fulfilled", "fulfilled", "fulfilled"]);
     expect((await dbs[0].users.list()).map((u) => u.role)).toEqual(["OPERADOR", "OPERADOR", "OPERADOR", "OPERADOR"]);
     const check = createClient({ url });
-    expect((await check.execute("SELECT version FROM schema_migrations ORDER BY version")).rows.map((r) => Number(r.version))).toEqual([1, 2, 3]);
+    expect((await check.execute("SELECT version FROM schema_migrations ORDER BY version")).rows.map((r) => Number(r.version))).toEqual(MIGRATIONS.map((_, i) => i + 1));
     check.close();
     dbs.forEach((db) => db.close());
   });

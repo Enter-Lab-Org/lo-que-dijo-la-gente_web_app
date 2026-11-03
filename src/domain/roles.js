@@ -7,15 +7,16 @@ export const ROLE_LIST = Object.freeze(Object.values(ROLES));
 export const DEFAULT_ROLE = ROLES.OPERADOR;
 
 // Sections that can be restricted. Values match the console tab keys and the public screen view.
-export const SECTIONS = Object.freeze({ GAME: "juego", BANK: "banco", DESIGN: "diseno", PUBLIC: "publico", USERS: "usuarios" });
+// ADMIN is the Administración panel (profile, database question bank, categories); USERS is the user management inside it.
+export const SECTIONS = Object.freeze({ GAME: "juego", BANK: "banco", DESIGN: "diseno", PUBLIC: "publico", ADMIN: "admin", USERS: "usuarios" });
 // Sections that need the web server and a signed-in user; a host without login never shows them.
-const LOGIN_ONLY = [SECTIONS.USERS];
+const LOGIN_ONLY = [SECTIONS.ADMIN, SECTIONS.USERS];
 const GAME_SECTIONS = Object.values(SECTIONS).filter((s) => !LOGIN_ONLY.includes(s));
 
-// Game limits are not defined yet, so every role sees every game section. User management is ADMIN only.
+// Game limits are not defined yet, so every role sees every game section and the admin panel. User management is ADMIN only.
 export const ACCESS = Object.freeze({
-  [ROLES.ADMIN]: [...GAME_SECTIONS, SECTIONS.USERS],
-  [ROLES.OPERADOR]: GAME_SECTIONS,
+  [ROLES.ADMIN]: [...GAME_SECTIONS, SECTIONS.ADMIN, SECTIONS.USERS],
+  [ROLES.OPERADOR]: [...GAME_SECTIONS, SECTIONS.ADMIN],
 });
 
 export const isRole = (role) => ROLE_LIST.includes(role);

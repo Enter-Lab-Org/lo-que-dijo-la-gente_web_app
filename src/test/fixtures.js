@@ -42,6 +42,10 @@ export function fakeServices(over = {}) {
     images: { prepImage: vi.fn(async () => "data:image/jpeg;base64,AAA") },
     projector: { native: false, openPublic: vi.fn(() => true) },
     fullscreen: { toggle: vi.fn() },
+    bankApi: {
+      listQuestions: vi.fn(async () => []), createQuestion: vi.fn(), removeQuestion: vi.fn(),
+      listCategories: vi.fn(async () => []), createCategory: vi.fn(), removeCategory: vi.fn(), savePicks: vi.fn(async () => {}),
+    },
     ...over,
   };
 }

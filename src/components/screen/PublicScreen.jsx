@@ -1,6 +1,7 @@
 import { THEME0 } from "../../domain/constants";
 import { EMPTY_PUB, roundLabel } from "../../domain/screen";
 import { normalizeTheme, screenVars } from "../../domain/theme";
+import { getProfile } from "../../domain/profiles";
 import { useScreenFx } from "../../hooks/useScreenFx";
 import TeamScore from "./TeamScore";
 import PotDisplay from "./PotDisplay";
@@ -14,8 +15,10 @@ export default function PublicScreen({ pub, theme, variant = "full", audio = nul
   const p = pub || EMPTY_PUB;
   const t = normalizeTheme(theme);
   const bigX = useScreenFx(pub, audio);
+  const profile = getProfile(t.profile);
   return (
-    <div id={id} className={`scrwrap ${variant}${t.tile ? " has-tile-img" : ""}`} style={{ ...screenVars(t), ...style }} data-testid="public-screen">
+    <div id={id} className={`scrwrap ${variant}${t.tile ? " has-tile-img" : ""}`} style={{ ...screenVars(t), ...style }}
+      data-profile={profile.id} data-testid="public-screen">
       <div className="scr">
         <header className="s-top">
           <TeamScore side="a" name={p.nameA} score={p.scoreA} />
@@ -26,13 +29,16 @@ export default function PublicScreen({ pub, theme, variant = "full", audio = nul
           <div className="s-meta">
             <span className="s-round">{roundLabel(p)}</span>
             <span className="s-status" aria-live="polite">{p.status || ""}</span>
-            <StrikeIndicators count={p.strikes || 0} />
+            <StrikeIndicators count={p.strikes || 0} mark={profile.screen.strike} />
           </div>
-          <h1 className="s-q">{p.has ? p.q : "Esperando la primera pregunta"}</h1>
+          <div className="s-qbox">
+            {profile.screen.questionTag && <span className="s-qtag">{profile.screen.questionTag}</span>}
+            <h1 className="s-q">{p.has ? p.q : "Esperando la primera pregunta"}</h1>
+          </div>
           <Board key={p.has ? p.key + ":" + p.n : "none"} n={p.has ? p.n : 0} open={p.open || []} />
         </section>
       </div>
-      <BigX count={bigX} />
+      <BigX count={bigX} mark={profile.screen.strike} />
     </div>
   );
 }
