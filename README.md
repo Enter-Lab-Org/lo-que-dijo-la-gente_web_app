@@ -81,7 +81,8 @@ The **Administración** tab has four parts: **Perfil del juego**, **Preguntas**,
 - Choosing a profile lists its questions with checkboxes. **Usar este perfil** asks for confirmation in the page; on
   **Sí** the picked questions replace the local game bank (`ldlg-banco`), the profile's title and colors go into the
   design (and to the public screen), and the choice is saved in `ldlg-profile`. The game keeps reading the local bank.
-  The current playlist (Juego) is not changed.
+  The current playlist (Juego) is not changed. Every switch clears the picks of the other profiles (no +18 question
+  carries into default), and applying with no picks leaves the game bank empty. The database bank is never changed by a switch.
 
 | Route | Does |
 | --- | --- |

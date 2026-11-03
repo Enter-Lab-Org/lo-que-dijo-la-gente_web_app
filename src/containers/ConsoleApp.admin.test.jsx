@@ -200,4 +200,34 @@ describe("Console · game profile", () => {
     expect(services.storage.data.get("ldlg-theme-v2")).toMatchObject({ profile: "default", title: "Lo que dijo la gente" });
     expect(document.documentElement.dataset.profile).toBe("default");
   });
+
+  it("clears the picked questions on every profile change, so +18 picks never carry into default; the database bank stays", async () => {
+    const u = userEvent.setup();
+    const { services, bankApi } = renderAs(OP);
+    const checked = (picker) => within(picker).getAllByRole("checkbox").filter((c) => c.checked);
+    await openAdmin(u, "Perfil del juego");
+    await u.click(screen.getByRole("radio", { name: /100 Tacones Dijeron/ }));
+    let picker = await screen.findByRole("group", { name: "Preguntas del perfil" });
+    await u.click(within(picker).getByRole("checkbox", { name: /Algo que nunca falta/ }));
+    await u.click(screen.getByRole("button", { name: "Usar este perfil" }));
+    await u.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí" }));
+
+    await u.click(screen.getByRole("radio", { name: /Lo que dijo la gente/ }));
+    picker = await screen.findByRole("group", { name: "Preguntas del perfil" });
+    expect(checked(picker)).toEqual([]);
+    await u.click(within(picker).getByRole("checkbox", { name: /Algo que llevas a la playa/ }));
+    await u.click(screen.getByRole("button", { name: "Usar este perfil" }));
+    await u.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí" }));
+    expect(services.storage.data.get("ldlg-banco").map((q) => q.id)).toEqual(["db-3"]);
+    expect(services.storage.data.get("ldlg-profile")).toEqual({ active: "default", selected: { default: [3], tacones: [] } });
+
+    await u.click(screen.getByRole("radio", { name: /100 Tacones Dijeron/ }));
+    picker = await screen.findByRole("group", { name: "Preguntas del perfil" });
+    expect(checked(picker)).toEqual([]);
+
+    // Switching profiles only touches the local game bank: the database keeps every question.
+    expect(bankApi.removeQuestion).not.toHaveBeenCalled();
+    await u.click(screen.getByRole("button", { name: "Preguntas" }));
+    for (const text of [/Algo que nunca falta/, /Señal de que tu cita/, /Algo que llevas a la playa/]) expect(panel().getByText(text)).toBeInTheDocument();
+  });
 });

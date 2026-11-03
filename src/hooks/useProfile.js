@@ -14,11 +14,12 @@ export function useProfile({ storage, bankStore, themeStore }) {
     const now = Date.now();
     bankStore.setBank(picked.map((q) => toBankItem(q, now)));
     themeStore.actions.commitTheme(applyProfileTheme(themeStore.current(), profileId));
-    const next = normalizeProfileConfig({ active: profileId, selected: { ...config.selected, [profileId]: picked.map((q) => q.id) } });
+    // Only the applied profile keeps its picks: every switch clears the others, so +18 picks never carry into default.
+    const next = normalizeProfileConfig({ active: profileId, selected: { [profileId]: picked.map((q) => q.id) } });
     storage.set(KEYS.profile, next);
     setConfig(next);
     return picked.length;
-  }, [storage, bankStore, themeStore, config]);
+  }, [storage, bankStore, themeStore]);
 
   return { config, apply };
 }
