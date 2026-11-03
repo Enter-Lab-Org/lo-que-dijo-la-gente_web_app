@@ -32,16 +32,18 @@ describe("roles", () => {
     expect(allowedSections({ role: "ROOT" })).toEqual([]);
   });
 
-  it("allows everything but user management when there is no user at all (desktop app, which has no login)", () => {
+  it("allows everything but the login-only sections when there is no user at all (desktop app, which has no login)", () => {
     expect(allowedSections(null)).toEqual(["juego", "banco", "diseno", "publico"]);
     expect(canAccess(null, "diseno")).toBe(true);
     expect(canAccess(null, "usuarios")).toBe(false);
+    expect(canAccess(null, "admin")).toBe(false);
     expect(allowedSections(null, { ADMIN: [] })).toEqual(["juego", "banco", "diseno", "publico"]);
   });
 
-  it("gives the users section only to ADMIN; the other sections to every role (limits not defined yet)", () => {
+  it("gives the admin panel to ADMIN and OPERADOR, user management only to ADMIN, the game sections to every role", () => {
     expect(SECTIONS.USERS).toBe("usuarios");
-    expect(allowedSections({ role: "ADMIN" })).toEqual(["juego", "banco", "diseno", "publico", "usuarios"]);
-    expect(allowedSections({ role: "OPERADOR" })).toEqual(["juego", "banco", "diseno", "publico"]);
+    expect(SECTIONS.ADMIN).toBe("admin");
+    expect(allowedSections({ role: "ADMIN" })).toEqual(["juego", "banco", "diseno", "publico", "admin", "usuarios"]);
+    expect(allowedSections({ role: "OPERADOR" })).toEqual(["juego", "banco", "diseno", "publico", "admin"]);
   });
 });

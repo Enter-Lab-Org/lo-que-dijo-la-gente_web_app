@@ -1,12 +1,19 @@
 import { cookies } from "next/headers";
 import { getDatabase } from "./db/index.js";
 import { createAuthService } from "./auth/service.js";
+import { createBankService } from "./bank/service.js";
 import { SESSION_COOKIE } from "./http/handlers.js";
 
 /* Next.js wiring: one auth service per server process, configured from the environment. */
 export function getAuth() {
   globalThis.__ldlgAuth ??= createAuthService({ db: getDatabase() });
   return globalThis.__ldlgAuth;
+}
+
+// The database question bank (admin panel), on the same connection.
+export function getBank() {
+  globalThis.__ldlgBank ??= createBankService({ db: getDatabase() });
+  return globalThis.__ldlgBank;
 }
 
 export const httpConfig = () => ({
