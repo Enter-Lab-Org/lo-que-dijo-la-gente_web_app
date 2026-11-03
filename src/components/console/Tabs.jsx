@@ -1,6 +1,6 @@
-export const TAB_LABELS = { juego: "Juego", banco: "Banco de preguntas", diseno: "Diseño", usuarios: "Usuarios" };
+export const TAB_LABELS = { juego: "Juego", banco: "Banco de preguntas", diseno: "Diseño", admin: "Administración" };
 
-// Without a list, the game tabs (what a host without login shows). "usuarios" only appears when the role allows it.
+// Without a list, the game tabs (what a host without login shows). "admin" only appears when the role allows it.
 const GAME_TABS = ["juego", "banco", "diseno"];
 
 export default function Tabs({ tab, onTab, tabs = GAME_TABS }) {

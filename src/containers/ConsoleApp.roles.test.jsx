@@ -12,7 +12,7 @@ const access = { ADMIN: ["juego", "banco", "diseno", "publico"], OPERADOR: ["jue
 describe("Console · roles", () => {
   it("shows every section and the role to a user whose role allows all (current real table)", () => {
     render(<App services={fakeServices({ storage: storageWithGame([question("a")]) })} user={{ email: "g@x.co", role: "OPERADOR" }} onLogout={() => {}} />);
-    expect(tabNames()).toEqual(["Juego", "Banco de preguntas", "Diseño"]);
+    expect(tabNames()).toEqual(["Juego", "Banco de preguntas", "Diseño", "Administración"]);
     expect(screen.getByText("OPERADOR")).toBeInTheDocument();
   });
 

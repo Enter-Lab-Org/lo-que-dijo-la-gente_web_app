@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { KEYS } from "../domain/constants";
 import { isNewer } from "../domain/screen";
 import { useServices } from "../hooks/services";
+import { useProfileStyle } from "../hooks/useProfileStyle";
 import PublicScreen from "../components/screen/PublicScreen";
 import StartOverlay from "../components/public/StartOverlay";
 import CornerControls from "../components/public/CornerControls";
@@ -16,6 +17,7 @@ export default function PublicApp() {
   const [started, setStarted] = useState(false);
   const [corner, setCorner] = useState(false);
   const hideTimer = useRef(null);
+  useProfileStyle(theme?.profile);
 
   useEffect(() => {
     document.title = "Lo Que Dijo la Gente · Público";

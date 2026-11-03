@@ -53,22 +53,50 @@ Requires Node 22.13+ (the `sqlite` driver uses the built-in `node:sqlite`).
 ## Roles
 
 Every user has one role: `ADMIN` or `OPERADOR` (the default). Game limits are not defined yet, so both see every game
-section for now; only **Usuarios** (user management) is ADMIN only. Restricting a role is a one-line change.
+section and the **Administración** panel for now; only user management (inside that panel) is ADMIN only. Restricting a
+role is a one-line change.
 
-- `src/domain/roles.js` is the single source: `ROLES`, `SECTIONS` (`juego`, `banco`, `diseno`, `publico`, `usuarios`) and
+- `src/domain/roles.js` is the single source: `ROLES`, `SECTIONS` (`juego`, `banco`, `diseno`, `publico`, `admin`, `usuarios`) and
   `ACCESS` (role → allowed sections). To limit a role, remove sections from its `ACCESS` list.
 - The role is stored in `users.role` (migration 2; users created before it became `ADMIN`; migration 3 removed the
   former `GUEST` role, turning those users into `OPERADOR`, and the database now refuses any other value) and read through the
   session on every request, so a role change applies on the next page load.
 - The console renders only the allowed tabs and panels (blocked ones are not in the page at all) and falls back to
   the first allowed tab; the public screen (`#publico`) and a console with no allowed tab show a no-access message.
-  A signed-in user with an unknown role sees nothing. The desktop app (no login) shows every game section, never Usuarios.
+  A signed-in user with an unknown role sees nothing. The desktop app (no login) shows every game section, never Administración.
 - The game data lives in the browser, so these checks shape what the UI offers. Any future server endpoint that
   reads or changes shared data must check `canAccess(user, section)` on the server as well.
 
+### Administración panel (ADMIN and OPERADOR)
+
+The **Administración** tab has four parts: **Perfil del juego**, **Preguntas**, **Categorías** and, for ADMIN only,
+**Usuarios**.
+
+- **Question bank in the database** (migration 4): `categories` (unique name), `questions` (text, optional category,
+  profile `DEFAULT` or `ADULT` = +18) and `answers` (question id, text, points, order). Answers without points get 10.
+  Deleting a category leaves its questions without category. The database is the only source of the bank.
+- **Game profiles** live in `src/domain/profiles.js`: `default` (the usual look, `DEFAULT` questions) and `tacones`
+  ("100 Tacones Dijeron", `ADULT` questions, palette from `100-tacones-dijeron-presentacion.pdf`). To rename a profile
+  or change its colors, edit only `name`, `theme` and `palette` there; `id` and `questionProfile` are stored keys.
+- Choosing a profile lists its questions with checkboxes. **Usar este perfil** asks for confirmation in the page; on
+  **Sí** the picked questions replace the local game bank (`ldlg-banco`), the profile's title and colors go into the
+  design (and to the public screen), and the choice is saved in `ldlg-profile`. The game keeps reading the local bank.
+  The current playlist (Juego) is not changed.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/bank/questions[?profile=DEFAULT\|ADULT]` | List questions with category name and ordered answers |
+| `POST /api/bank/questions` | Create `{ text, categoryId?, profile, answers: [{ text, points? }] }` → 201; 400 invalid |
+| `DELETE /api/bank/questions/:id` | Delete a question and its answers |
+| `GET /api/bank/categories` | List categories by name |
+| `POST /api/bank/categories` | Create `{ name }` → 201; 400 invalid, 409 name taken |
+| `DELETE /api/bank/categories/:id` | Delete a category |
+
+Every call needs a live session whose role can access `admin` (401 / 403); changes also need a same-origin request (403).
+
 ### User management (ADMIN)
 
-The **Usuarios** tab lists the users who can sign in and lets an ADMIN create users, change a role, set a new
+The **Usuarios** part of the panel lists the users who can sign in and lets an ADMIN create users, change a role, set a new
 password and delete a user (two clicks to confirm). It talks to an API that checks everything on the server:
 
 | Route | Does |
@@ -147,4 +175,5 @@ When `window.ldlg.native` is true (see `../lo-que-dijo-la-gente/preload.js`) the
 
 ## Storage keys
 
-`ldlg-v2` (game), `ldlg-pub` (public state), `ldlg-theme-v2` (design), `ldlg-banco` (bank), `ldlg-tab`, `ldlg-seeded`.
+`ldlg-v2` (game), `ldlg-pub` (public state), `ldlg-theme-v2` (design, includes the active `profile`), `ldlg-banco` (bank),
+`ldlg-tab`, `ldlg-seeded`, `ldlg-profile` (active game profile and picked database question ids).

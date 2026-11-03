@@ -28,24 +28,37 @@ const renderAs = (user, users = fakeUsersApi([ME, { id: 2, email: "op@b.co", rol
   render(<App services={fakeServices({ storage: storageWithGame([question("a")]), users })} user={user} onLogout={user ? () => {} : null} />);
   return users;
 };
-const openUsers = async (u) => { await u.click(screen.getByRole("tab", { name: "Usuarios" })); return screen.findByRole("table", { name: "Usuarios con acceso" }); };
+// User management lives inside the Administración panel.
+const openPanelUsers = async (u) => { await u.click(screen.getByRole("tab", { name: "Administración" })); await u.click(screen.getByRole("button", { name: "Usuarios" })); };
+const openUsers = async (u) => { await openPanelUsers(u); return screen.findByRole("table", { name: "Usuarios con acceso" }); };
 const row = (table, email) => within(table).getByText(email).closest("tr");
 
 describe("Console · user administration", () => {
-  it("shows the Usuarios tab only to ADMIN, never to other roles or the desktop app", () => {
+  it("shows user management inside Administración only to ADMIN, never to other roles or the desktop app", async () => {
+    const u = userEvent.setup();
     renderAs(ME);
-    expect(screen.getByRole("tab", { name: "Usuarios" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Usuarios" })).toBeNull();
+    await u.click(screen.getByRole("tab", { name: "Administración" }));
+    expect(screen.getByRole("button", { name: "Usuarios" })).toBeInTheDocument();
   });
 
-  it.each([["OPERADOR"], ["ROOT"]])("hides the Usuarios tab and panel from %s", (role) => {
-    renderAs({ id: 3, email: "x@b.co", role });
-    expect(screen.queryByRole("tab", { name: "Usuarios" })).toBeNull();
-    expect(document.getElementById("p-usuarios")).toBeNull();
+  it("hides it from OPERADOR, who still opens Administración", async () => {
+    const u = userEvent.setup();
+    renderAs({ id: 3, email: "x@b.co", role: "OPERADOR" });
+    await u.click(screen.getByRole("tab", { name: "Administración" }));
+    expect(screen.queryByRole("button", { name: "Usuarios" })).toBeNull();
+    expect(screen.queryByRole("table", { name: "Usuarios con acceso" })).toBeNull();
+  });
+
+  it("hides the whole panel from an unknown role and from the desktop app (no user)", () => {
+    renderAs({ id: 3, email: "x@b.co", role: "ROOT" });
+    expect(screen.queryByRole("tab", { name: "Administración" })).toBeNull();
+    expect(document.getElementById("p-admin")).toBeNull();
   });
 
   it("hides it in the desktop app (no user)", () => {
     renderAs(null);
-    expect(screen.queryByRole("tab", { name: "Usuarios" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Administración" })).toBeNull();
   });
 
   it("lists the users with their role", async () => {
@@ -124,7 +137,7 @@ describe("Console · user administration", () => {
     const api = fakeUsersApi([]);
     api.list.mockRejectedValueOnce(new Error("No tienes permiso para administrar usuarios."));
     renderAs(ME, api);
-    await u.click(screen.getByRole("tab", { name: "Usuarios" }));
+    await openPanelUsers(u);
     expect(await screen.findByText("No tienes permiso para administrar usuarios.")).toBeInTheDocument();
   });
 });

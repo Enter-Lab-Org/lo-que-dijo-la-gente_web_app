@@ -10,7 +10,8 @@ export const isQuestionProfile = (p) => QUESTION_PROFILE_LIST.includes(p);
 
 export const DEFAULT_PROFILE = "default";
 
-/* theme: values written into the Diseño theme when the profile is applied (title and the three accent colors).
+/* screen: public board details (questionTag: pill text over the question or null; strike: "x" or "heel").
+   theme: values written into the Diseño theme when the profile is applied (title and the three accent colors).
    palette: CSS custom properties for the whole app while the profile is active (null = the stylesheet defaults). */
 export const PROFILES = Object.freeze({
   default: {
@@ -20,6 +21,7 @@ export const PROFILES = Object.freeze({
     questionProfile: QUESTION_PROFILES.DEFAULT,
     theme: { title: "Lo que dijo la gente", gold: "#f5a518", rosa: "#e6007e", turq: "#18c2bd" },
     palette: null,
+    screen: { questionTag: null, strike: "x" },
   },
   tacones: {
     id: "tacones",
@@ -45,6 +47,8 @@ export const PROFILES = Object.freeze({
       "--bulb": "#FFC727", // Amarillo Reflector
       "--orange": "#FF7A1A", // Naranja Tacón
     },
+    // Public screen details: a "PREGUNTA" pill over the question, and broken heels ("¡Tacón roto!") as strikes.
+    screen: { questionTag: "Pregunta", strike: "heel" },
   },
 });
 export const PROFILE_LIST = Object.freeze(Object.values(PROFILES));

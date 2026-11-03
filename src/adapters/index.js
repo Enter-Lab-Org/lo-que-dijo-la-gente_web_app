@@ -6,6 +6,7 @@ import { createFiles } from "./files";
 import { prepImage } from "./images";
 import { createProjector } from "./projector";
 import { createUsersApi } from "./usersApi";
+import { createBankApi } from "./bankApi";
 
 /* All side effects the app needs, built once. Tests pass fakes with the same shape. */
 export function createServices(win = window) {
@@ -21,6 +22,8 @@ export function createServices(win = window) {
     projector: createProjector({ native, win, bus }),
     // Only the web host has a server; the console shows user management only to a signed-in ADMIN.
     users: createUsersApi({ fetch: (...args) => win.fetch(...args) }),
+    // Database question bank of the admin panel (web host only, signed-in ADMIN or OPERADOR).
+    bankApi: createBankApi({ fetch: (...args) => win.fetch(...args) }),
     fullscreen: {
       toggle() {
         try {
