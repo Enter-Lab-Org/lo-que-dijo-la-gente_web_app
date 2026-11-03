@@ -6,6 +6,7 @@ const MAX_CATEGORY = 60;
 const MAX_QUESTION = 200;
 const MAX_ANSWER = 80;
 const MAX_POINTS = 999;
+const MAX_PICKS = 1000;
 
 export class BankError extends Error {
   constructor(code, message) {
@@ -51,6 +52,12 @@ function checkAnswers(raw) {
   return rows.sort((a, b) => b.points - a.points);
 }
 
+function checkIds(raw) {
+  const valid = Array.isArray(raw) && raw.length <= MAX_PICKS && raw.every((id) => Number.isInteger(id) && id > 0);
+  if (!valid) throw invalid("Selección de preguntas inválida.");
+  return [...new Set(raw)];
+}
+
 /* Question bank use cases over the repository ports. db: { categories, questions } from ../db. */
 export function createBankService({ db, now = Date.now }) {
   return {
@@ -87,6 +94,11 @@ export function createBankService({ db, now = Date.now }) {
         if (e?.code === "CATEGORY_NOT_FOUND") throw invalid("La categoría no existe.");
         throw e;
       }
+    },
+
+    // The picks of one question profile, shared by every operator: ids of other profiles are ignored.
+    async savePicks({ profile, ids }) {
+      await db.questions.setPicked({ profile: checkProfile(profile), ids: checkIds(ids) });
     },
 
     async deleteQuestion({ id }) {

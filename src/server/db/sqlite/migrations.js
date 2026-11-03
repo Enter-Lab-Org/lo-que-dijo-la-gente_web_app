@@ -48,6 +48,9 @@ export const MIGRATIONS = [
      position INTEGER NOT NULL
    );
    CREATE INDEX answers_question ON answers(question_id, position);`,
+  // 5: the questions picked for their profile (what a game profile preloads in the admin panel; the same for every
+  // operator). Existing questions start unpicked.
+  `ALTER TABLE questions ADD COLUMN picked INTEGER NOT NULL DEFAULT 0 CHECK (picked IN (0, 1));`,
 ];
 
 export function migrate(db) {

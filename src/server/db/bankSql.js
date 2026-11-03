@@ -8,7 +8,7 @@ export const BANK_SQL = {
   // Questions first lose the category (Turso may not enforce ON DELETE SET NULL), then it goes.
   unlinkCategory: "UPDATE questions SET category_id = NULL WHERE category_id = ?",
   deleteCategory: "DELETE FROM categories WHERE id = ?",
-  questions: `SELECT q.id, q.text, q.category_id, q.profile, q.created_at, COALESCE(c.name, '') AS category
+  questions: `SELECT q.id, q.text, q.category_id, q.profile, q.created_at, q.picked, COALESCE(c.name, '') AS category
     FROM questions q LEFT JOIN categories c ON c.id = q.category_id`,
   answersOf: (count) => `SELECT question_id, text, points FROM answers WHERE question_id IN (${Array(count).fill("?").join(", ")}) ORDER BY question_id, position`,
   // The category check lives in the insert itself, so a category deleted at the same time cannot be linked.
@@ -17,6 +17,8 @@ export const BANK_SQL = {
   insertAnswer: "INSERT INTO answers (question_id, text, points, position) VALUES (?, ?, ?, ?)",
   deleteAnswers: "DELETE FROM answers WHERE question_id = ?",
   deleteQuestion: "DELETE FROM questions WHERE id = ?",
+  // One statement (atomic): the given ids become the picks of that profile, the rest of its questions are unpicked.
+  setPicked: "UPDATE questions SET picked = (id IN (SELECT value FROM json_each(?2))) WHERE profile = ?1", // profile, JSON ids
 };
 
 export const ORDER = " ORDER BY q.text COLLATE NOCASE, q.id";
@@ -33,6 +35,6 @@ export function toQuestions(rows, answerRows) {
   answerRows.forEach((a) => byQuestion.get(Number(a.question_id))?.push({ text: a.text, points: Number(a.points) }));
   return rows.map((r) => ({
     id: Number(r.id), text: r.text, categoryId: r.category_id === null ? null : Number(r.category_id), category: r.category,
-    profile: r.profile, createdAt: Number(r.created_at), answers: byQuestion.get(Number(r.id)),
+    profile: r.profile, createdAt: Number(r.created_at), picked: Number(r.picked) === 1, answers: byQuestion.get(Number(r.id)),
   }));
 }

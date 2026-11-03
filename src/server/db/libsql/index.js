@@ -148,6 +148,7 @@ export function createLibsqlDatabase({ url, authToken } = {}) {
       const [, del] = await writeBatch([{ sql: BANK_SQL.deleteAnswers, args: [id] }, { sql: BANK_SQL.deleteQuestion, args: [id] }]);
       return del.rowsAffected > 0;
     },
+    async setPicked({ profile, ids }) { await run(BANK_SQL.setPicked, [profile, JSON.stringify(ids)]); },
   };
 
   return { users, sessions, categories, questions, close: () => client.close() };

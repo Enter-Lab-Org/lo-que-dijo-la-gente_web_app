@@ -131,6 +131,7 @@ export function createSqliteDatabase({ url = DEFAULT_SQLITE_URL } = {}) {
     async delete(id) {
       return tx(() => { db.prepare(BANK_SQL.deleteAnswers).run(id); return db.prepare(BANK_SQL.deleteQuestion).run(id).changes > 0; });
     },
+    async setPicked({ profile, ids }) { db.prepare(BANK_SQL.setPicked).run(profile, JSON.stringify(ids)); },
   };
 
   return { users, sessions, categories, questions, close: () => db.close() };

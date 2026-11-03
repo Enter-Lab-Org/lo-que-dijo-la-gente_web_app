@@ -33,6 +33,12 @@ describe("bank API adapter", () => {
     ]);
   });
 
+  it("saves the picked questions of a profile with PUT /api/bank/picks", async () => {
+    const fetch = vi.fn().mockResolvedValue(reply(200, { ok: true }));
+    expect(await createBankApi({ fetch }).savePicks("ADULT", [1, 2])).toBeUndefined();
+    expect(fetch.mock.calls).toEqual([["/api/bank/picks", { method: "PUT", credentials: "same-origin", headers: { "content-type": "application/json" }, body: '{"profile":"ADULT","ids":[1,2]}' }]]);
+  });
+
   it("rejects with the server message", async () => {
     const api = createBankApi({ fetch: vi.fn().mockResolvedValue(reply(409, { error: "Ya existe una categoría con ese nombre." })) });
     await expect(api.createCategory("x")).rejects.toThrow("Ya existe una categoría con ese nombre.");

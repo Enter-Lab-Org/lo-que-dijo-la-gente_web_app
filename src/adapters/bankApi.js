@@ -10,5 +10,6 @@ export function createBankApi({ fetch }) {
     listCategories: async () => (await call("GET", "/api/bank/categories")).categories,
     createCategory: async (name) => (await call("POST", "/api/bank/categories", { name })).category,
     removeCategory: async (id) => { await call("DELETE", `/api/bank/categories/${id}`); },
+    savePicks: async (profile, ids) => { await call("PUT", "/api/bank/picks", { profile, ids }); },
   };
 }

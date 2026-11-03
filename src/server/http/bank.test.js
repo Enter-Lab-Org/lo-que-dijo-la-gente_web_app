@@ -129,3 +129,35 @@ describe("bank API · questions", () => {
     expect(await ctx.db.questions.list()).toEqual([]);
   });
 });
+
+describe("bank API · picked questions per profile", () => {
+  const add = async (text, profile) => (await call("POST", "/api/bank/questions", { body: { text, profile, answers: ANSWERS } })).body.question;
+
+  it("saves the picks of one profile (PUT) for every operator; questions list them as picked", async () => {
+    const a = await add("A", "ADULT");
+    const b = await add("B", "ADULT");
+    const d = await add("D", "DEFAULT");
+    expect(a.picked).toBe(false);
+    expect(await call("PUT", "/api/bank/picks", { body: { profile: "DEFAULT", ids: [d.id] } })).toEqual({ status: 200, body: { ok: true }, cache: "no-store" });
+    expect(await call("PUT", "/api/bank/picks", { body: { profile: "ADULT", ids: [b.id] }, token: ctx.adminToken })).toMatchObject({ status: 200 });
+    const listed = (await call("GET", "/api/bank/questions", { token: ctx.adminToken })).body.questions;
+    expect(listed.map((q) => [q.text, q.picked])).toEqual([["A", false], ["B", true], ["D", true]]);
+    expect(await call("PUT", "/api/bank/picks", { body: { profile: "ADULT", ids: [] } })).toMatchObject({ status: 200 });
+    expect((await ctx.db.questions.list({ profile: "ADULT" })).map((q) => q.picked)).toEqual([false, false]);
+  });
+
+  it("refuses an unknown profile, ids that are not a list of positive whole numbers, other methods and other origins", async () => {
+    const a = await add("A", "ADULT");
+    for (const body of [{ profile: "KIDS", ids: [a.id] }, { ids: [a.id] }]) {
+      expect(await call("PUT", "/api/bank/picks", { body })).toMatchObject({ status: 400, body: { error: "Perfil inválido. Usa DEFAULT o ADULT." } });
+    }
+    for (const ids of [undefined, "1", [0], [-1], [1.5], ["1"], [null]]) {
+      expect(await call("PUT", "/api/bank/picks", { body: { profile: "ADULT", ids } })).toMatchObject({ status: 400, body: { error: "Selección de preguntas inválida." } });
+    }
+    expect(await call("GET", "/api/bank/picks")).toMatchObject({ status: 405 });
+    expect(await call("POST", "/api/bank/picks", { body: { profile: "ADULT", ids: [a.id] } })).toMatchObject({ status: 405 });
+    expect(await call("PUT", "/api/bank/picks", { body: { profile: "ADULT", ids: [a.id] }, origin: "http://evil.example" })).toMatchObject({ status: 403 });
+    expect(await call("PUT", "/api/bank/picks", { body: { profile: "ADULT", ids: [a.id] }, token: null })).toMatchObject({ status: 401 });
+    expect((await ctx.db.questions.list())[0].picked).toBe(false);
+  });
+});

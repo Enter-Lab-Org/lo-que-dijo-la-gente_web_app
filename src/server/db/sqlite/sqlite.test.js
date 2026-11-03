@@ -86,4 +86,19 @@ describe("sqlite migration 4 (question bank)", () => {
       .toMatchObject({ category: "Picante", answers: [{ text: "a", points: 10 }] });
     db.close();
   });
+
+  it("adds the picked flag to a version 4 database: its questions keep their data and start unpicked", async () => {
+    const path = join(dir, "v4.db");
+    const v4 = new DatabaseSync(path);
+    MIGRATIONS.slice(0, 4).forEach((sql) => v4.exec(sql));
+    v4.exec("PRAGMA user_version = 4");
+    v4.prepare("INSERT INTO questions (text, category_id, profile, created_at) VALUES (?, ?, ?, ?)").run("Vieja", null, "ADULT", 1);
+    v4.prepare("INSERT INTO answers (question_id, text, points, position) VALUES (?, ?, ?, ?)").run(1, "a", 7, 0);
+    v4.close();
+    const db = createSqliteDatabase({ url: path });
+    expect(await db.questions.list()).toEqual([{ id: 1, text: "Vieja", categoryId: null, category: "", profile: "ADULT", createdAt: 1, picked: false, answers: [{ text: "a", points: 7 }] }]);
+    await db.questions.setPicked({ profile: "ADULT", ids: [1] });
+    expect((await db.questions.list())[0].picked).toBe(true);
+    db.close();
+  });
 });
