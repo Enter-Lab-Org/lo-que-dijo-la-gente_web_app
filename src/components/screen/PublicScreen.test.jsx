@@ -17,6 +17,27 @@ describe("PublicScreen", () => {
     expect(screen.getByText("Lo que dijo la gente")).toBeInTheDocument();
   });
 
+  it("uses the default profile look: X strikes, no question tag", () => {
+    const p = pubOf(strike(gameWith("a")).state);
+    render(<PublicScreen pub={p} />);
+    expect(screen.getByTestId("public-screen").dataset.profile).toBe("default");
+    expect(screen.getByTestId("strikes").textContent).toBe("XXX");
+    expect(screen.queryByText("Pregunta", { exact: true })).toBeNull();
+  });
+
+  it("uses the 100 Tacones Dijeron look: its palette, a PREGUNTA tag and broken heels as strikes", () => {
+    const p = pubOf(strike(gameWith("a")).state);
+    render(<PublicScreen pub={p} theme={{ profile: "tacones", title: "100 Tacones Dijeron", gold: "#FFC727" }} />);
+    const scr = screen.getByTestId("public-screen");
+    expect(scr.dataset.profile).toBe("tacones");
+    expect(scr.style.getPropertyValue("--bg")).toBe("#24093F");
+    expect(scr.style.getPropertyValue("--gold")).toBe("#FFC727");
+    expect(screen.getByText("Pregunta", { exact: true })).toHaveClass("s-qtag");
+    expect(screen.getByTestId("strikes").querySelectorAll("svg.heel")).toHaveLength(3);
+    expect(screen.getByTestId("strikes").querySelectorAll(".s-strike.on")).toHaveLength(1);
+    expect(screen.getByText("100 Tacones Dijeron")).toBeInTheDocument();
+  });
+
   it("shows scores, names, question, round and numbered tiles with blank padding", () => {
     const p = pubOf(gameWith("a", "b"));
     const { container } = render(<PublicScreen pub={p} />);

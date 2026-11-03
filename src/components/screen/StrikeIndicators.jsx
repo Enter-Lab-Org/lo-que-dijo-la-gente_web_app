@@ -1,9 +1,10 @@
 import { MAX_STRIKES } from "../../domain/constants";
+import StrikeMark from "./StrikeMark";
 
-export default function StrikeIndicators({ count = 0 }) {
+export default function StrikeIndicators({ count = 0, mark = "x" }) {
   return (
     <div className="s-strikes" data-testid="strikes">
-      {Array.from({ length: MAX_STRIKES }, (_, i) => <span key={i} className={"s-strike" + (i < count ? " on" : "")}>X</span>)}
+      {Array.from({ length: MAX_STRIKES }, (_, i) => <span key={i} className={"s-strike" + (i < count ? " on" : "")}><StrikeMark kind={mark} /></span>)}
     </div>
   );
 }
