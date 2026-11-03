@@ -176,15 +176,20 @@ describe("Console · game profile", () => {
     expect(screen.getByText("Algo que nunca falta en la bolsa de una drag")).toBeInTheDocument();
   });
 
-  it("refuses to apply a profile with no picked questions, and can switch back to default", async () => {
+  it("applies a profile with no picked questions (empty game bank), and can switch back to default", async () => {
     const u = userEvent.setup();
     const { services } = renderAs(OP);
     await openAdmin(u, "Perfil del juego");
     await u.click(screen.getByRole("radio", { name: /100 Tacones Dijeron/ }));
     await screen.findByRole("group", { name: "Preguntas del perfil" });
     await u.click(screen.getByRole("button", { name: "Usar este perfil" }));
-    expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(screen.getByText("Selecciona al menos una pregunta.")).toBeInTheDocument();
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog).toHaveTextContent("No se cargarán preguntas: el banco del juego quedará vacío.");
+    await u.click(within(dialog).getByRole("button", { name: "Sí" }));
+    expect(services.storage.data.get("ldlg-banco")).toEqual([]);
+    expect(services.storage.data.get("ldlg-theme-v2")).toMatchObject({ profile: "tacones", title: "100 Tacones Dijeron" });
+    expect(services.storage.data.get("ldlg-profile")).toMatchObject({ active: "tacones", selected: { tacones: [] } });
+    expect(document.documentElement.dataset.profile).toBe("tacones");
 
     await u.click(screen.getByRole("radio", { name: /Lo que dijo la gente/ }));
     const picker = await screen.findByRole("group", { name: "Preguntas del perfil" });

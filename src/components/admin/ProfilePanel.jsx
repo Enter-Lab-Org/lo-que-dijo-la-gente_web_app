@@ -1,7 +1,7 @@
 import { QUESTION_PROFILE_LABELS } from "../../domain/profiles";
 
 /* Game profile picker: the profiles, and the database questions of the chosen one with checkboxes. */
-export default function ProfilePanel({ profiles, chosen, activeId, questions, selected, message, onChoose, onToggle, onAll, onApply }) {
+export default function ProfilePanel({ profiles, chosen, activeId, questions, selected, onChoose, onToggle, onAll, onApply }) {
   const active = profiles.find((p) => p.id === activeId);
   return (
     <div className="a-grid">
@@ -42,7 +42,6 @@ export default function ProfilePanel({ profiles, chosen, activeId, questions, se
               </fieldset>
             </>
           )}
-        {message && <p className="hint err" role="status">{message}</p>}
         <div className="row"><button className="btn gold" type="button" onClick={onApply}>Usar este perfil</button></div>
       </div>
     </div>

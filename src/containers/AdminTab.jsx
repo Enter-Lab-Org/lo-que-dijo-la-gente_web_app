@@ -27,7 +27,6 @@ export default function AdminTab({ api, usersApi, canManageUsers, currentUserId,
   const { config, apply } = profileStore;
   const [chosenId, setChosenId] = useState(config.active);
   const [selected, setSelected] = useState(() => new Set(config.selected[config.active]));
-  const [pickMessage, setPickMessage] = useState("");
   const [confirm, setConfirm] = useState(false);
 
   useEffect(() => {
@@ -79,13 +78,10 @@ export default function AdminTab({ api, usersApi, canManageUsers, currentUserId,
   const chosen = getProfile(chosenId);
   const profileQuestions = questions.filter((q) => q.profile === chosen.questionProfile);
   const picked = profileQuestions.filter((q) => selected.has(q.id));
-  const choose = (id) => { setChosenId(id); setSelected(new Set(config.selected[id] ?? [])); setPickMessage(""); };
-  const toggle = (id) => { setPickMessage(""); setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }); };
-  const all = (on) => { setPickMessage(""); setSelected(new Set(on ? profileQuestions.map((q) => q.id) : [])); };
-  const askApply = () => {
-    if (!picked.length) { setPickMessage("Selecciona al menos una pregunta."); return; }
-    setConfirm(true);
-  };
+  const choose = (id) => { setChosenId(id); setSelected(new Set(config.selected[id] ?? [])); };
+  const toggle = (id) => { setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }); };
+  const all = (on) => { setSelected(new Set(on ? profileQuestions.map((q) => q.id) : [])); };
+  const askApply = () => setConfirm(true);
   const doApply = () => {
     setConfirm(false);
     const n = apply(chosen.id, questions, picked.map((q) => q.id));
@@ -103,7 +99,7 @@ export default function AdminTab({ api, usersApi, canManageUsers, currentUserId,
 
       {part === "perfil" && (
         <ProfilePanel profiles={PROFILE_LIST} chosen={chosen} activeId={config.active} questions={profileQuestions} selected={selected}
-          message={pickMessage} onChoose={choose} onToggle={toggle} onAll={all} onApply={askApply} />
+          onChoose={choose} onToggle={toggle} onAll={all} onApply={askApply} />
       )}
       {part === "preguntas" && (
         <div className="a-grid">
@@ -122,7 +118,8 @@ export default function AdminTab({ api, usersApi, canManageUsers, currentUserId,
 
       {confirm && (
         <ConfirmDialog title={`¿Deseas usar el perfil ${chosen.name}?`} onYes={doApply} onNo={() => setConfirm(false)}>
-          {picked.length === 1 ? "Se cargará 1 pregunta al banco del juego." : `Se cargarán ${picked.length} preguntas al banco del juego.`}
+          {picked.length === 0 ? "No se cargarán preguntas: el banco del juego quedará vacío."
+            : picked.length === 1 ? "Se cargará 1 pregunta al banco del juego." : `Se cargarán ${picked.length} preguntas al banco del juego.`}
           {" "}Reemplaza las preguntas que hay ahora en el banco del juego.
         </ConfirmDialog>
       )}
